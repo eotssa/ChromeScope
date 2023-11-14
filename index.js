@@ -2,14 +2,33 @@ const express = require('express');
 const multer = require('multer');
 const admZip = require('adm-zip');
 const { exec } = require('child_process');
-const fs = require('fs'); // Make sure to include this for file system operations
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const { v4: uuidv4 } = require('uuid');
 
 const app = express();
 const port = 3000;
 
+
 // Set up file storage
-const storage = multer.memoryStorage(); // using memory storage for temporary file handling
+const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
+
+// Utility Functions
+function createTempDirectory() {
+  const tempDir = path.join(os.tmpdir(), uuidv4());
+  fs.mkdirSync(tempDir);
+  return tempDir;
+}
+
+function deleteTempDirectory(directoryPath) {
+  if (fs.existsSync(directoryPath)) {
+    fs.rmSync(directoryPath, { recursive: true, force: true });
+  }
+}
+
+
 
 app.get('/', (req, res) => {
   console.log('Received request at /');
@@ -21,23 +40,16 @@ app.listen(port, () => {
 });
 
 app.post('/upload', upload.single('extensionFile'), (req, res) => {
-  console.log('Received file upload request');
-
-  const tempPath = createTempDirectory(); // Implement this function to create a temporary directory
-
   if (req.file) {
     console.log(`Received file: ${req.file.originalname}`);
+
+    const tempPath = createTempDirectory(); // Create a temporary directory
     try {
+      // First, read the manifest file from the zip
       const zip = new admZip(req.file.buffer);
-      console.log('Zip file loaded into memory');
-
-      const tempPath = '/path/to/temp/extension/directory';
-      console.log(`Extracting to temporary path: ${tempPath}`);
-      zip.extractAllTo(tempPath, true);
-
       const manifest = JSON.parse(zip.readAsText('manifest.json'));
-      console.log('Manifest file read');
 
+      // Calculate scores based on the manifest
       const details = {
         metadataDetails: {},
         cspDetails: {},
@@ -46,23 +58,19 @@ app.post('/upload', upload.single('extensionFile'), (req, res) => {
       };
 
       const metadataScore = analyzeMetadata(manifest, details.metadataDetails);
-      console.log(`Metadata score calculated: ${metadataScore}`);
-
       const cspScore = analyzeCSP(manifest, details.cspDetails);
-      console.log(`CSP score calculated: ${cspScore}`);
-
       const permissionsScore = analyzePermissions(manifest, details.permissionsDetails);
-      console.log(`Permissions score calculated: ${permissionsScore}`);
+
+      // Then extract files for RetireJS analysis
+      console.log(`Extracting to temporary path: ${tempPath}`);
+      zip.extractAllTo(tempPath, true);
 
       analyzeJSLibraries(tempPath, (err, retireJsResults) => {
         if (err) {
           console.error(`Error analyzing JavaScript libraries: ${err}`);
           res.status(500).send('Error analyzing JavaScript libraries');
         } else {
-          console.log('RetireJS analysis completed');
           const jsLibrariesScore = calculateJSLibrariesScore(retireJsResults, details.jsLibrariesDetails);
-          console.log(`JS Libraries score calculated: ${jsLibrariesScore}`);
-
           const totalRiskScore = metadataScore + cspScore + permissionsScore + jsLibrariesScore;
 
           const result = {
@@ -76,78 +84,21 @@ app.post('/upload', upload.single('extensionFile'), (req, res) => {
             details: details
           };
 
-          // Log the final results to the console
-          console.log("Analysis Results:", JSON.stringify(result, null, 2));
-
+          console.log('Analysis Results:', JSON.stringify(result, null, 2));
           res.json(result);
-          fs.rmSync(tempPath, { recursive: true, force: true });
         }
+
+        deleteTempDirectory(tempPath); // Clean up the temporary directory
       });
     } catch (error) {
       console.error(`Error processing file: ${error}`);
+      deleteTempDirectory(tempPath); // Clean up even in case of error
       res.status(500).send('Error processing the file');
     }
   } else {
-    console.log('No file uploaded');
     res.status(400).send('No file uploaded');
   }
 });
-
-
-// app.post('/upload', upload.single('extensionFile'), (req, res) => {
-//   if (req.file) {
-//     try {
-//       const zip = new admZip(req.file.buffer);
-//       const tempPath = '/path/to/temp/extension/directory';
-//       zip.extractAllTo(tempPath, true);
-
-//       const manifest = JSON.parse(zip.readAsText('manifest.json'));
-
-//       const details = {
-//         metadataDetails: {},
-//         cspDetails: {},
-//         permissionsDetails: {},
-//         jsLibrariesDetails: {}
-//       };
-
-//       const metadataScore = analyzeMetadata(manifest, details.metadataDetails);
-//       const cspScore = analyzeCSP(manifest, details.cspDetails);
-//       const permissionsScore = analyzePermissions(manifest, details.permissionsDetails);
-
-//       analyzeJSLibraries(tempPath, (err, retireJsResults) => {
-//         if (err) {
-//           res.status(500).send('Error analyzing JavaScript libraries');
-//         } else {
-//           const jsLibrariesScore = calculateJSLibrariesScore(retireJsResults, details.jsLibrariesDetails);
-
-//           const totalRiskScore = metadataScore + cspScore + permissionsScore + jsLibrariesScore;
-
-//           const result = {
-//             totalRiskScore: totalRiskScore,
-//             breakdown: {
-//               metadataScore: metadataScore,
-//               cspScore: cspScore,
-//               permissionsScore: permissionsScore,
-//               jsLibrariesScore: jsLibrariesScore
-//             },
-//             details: details
-//           };
-          
-//           console.log("Analysis Results:", JSON.stringify(result, null, 2));
-
-//           res.json(result);
-//           fs.rmSync(tempPath, { recursive: true, force: true });
-//         }
-//       });
-//     } catch (error) {
-//       res.status(500).send('Error processing the file');
-//     }
-//   } else {
-//     res.status(400).send('No file uploaded');
-//   }
-// });
-
-
 
 
 
@@ -195,9 +146,9 @@ function analyzeCSP(manifest, cspDetails) {
     policies.forEach(policy => {
       const policyParts = policy.split(' ').filter(Boolean);
       const directive = policyParts.shift(); // e.g., 'script-src', 'object-src'
-      
+
       policyParts.forEach(source => {
-        if (source !== "'self'") {
+        if (source !== '\'self\'') {
           score += 1; // Increment score for each source excluding 'self'
           cspDetails[directive] = cspDetails[directive] || [];
           cspDetails[directive].push(source);
@@ -233,31 +184,111 @@ function findCSP(obj) {
 }
 
 
-
-
-
-
 function analyzeJSLibraries(extensionPath, callback) {
-  const retireCmd = `retire --path "${extensionPath}" --outputformat json`;
-  exec(retireCmd, (error, stdout, stderr) => {
-    if (error) {
-      console.error(`Exec error: ${error}`);
-      console.error(`Command: ${retireCmd}`);
-      return callback(`Error executing RetireJS: ${error.message}`, null);
+  console.log(`Starting RetireJS analysis for directory: ${extensionPath}`);
+
+  fs.readdir(extensionPath, (err, files) => {
+    if (err) {
+      console.error(`Error reading directory: ${err.message}`);
+      return callback(`Error reading directory: ${err.message}`, null);
     }
-    if (stderr) {
-      console.error(`Stderr: ${stderr}`);
-      return callback(`Error in RetireJS: ${stderr}`, null);
-    }
-    try {
-      const results = JSON.parse(stdout);
-      return callback(null, results);
-    } catch (parseError) {
-      console.error(`Error parsing RetireJS output: ${parseError}`);
-      return callback(parseError, null);
-    }
+
+    console.log(`Files found for analysis: ${files.join(', ')}`);
+
+    const retirePromises = files.map(file => {
+      return new Promise((resolve, reject) => {
+        const filePath = path.join(extensionPath, file);
+        const retireCmd = `retire --path "${filePath}" --outputformat json`;
+        console.log(`Executing RetireJS command: ${retireCmd}`);
+
+        exec(retireCmd, (error, stdout, stderr) => {
+          if (error || stderr) {
+            console.error(`Error in file ${file}: ${error || stderr}`);
+            reject(new Error(`RetireJS analysis failed for ${file}`));
+          } else {
+            try {
+              const fileResults = JSON.parse(stdout);
+              console.log(`RetireJS results for file ${file}:`, fileResults);
+              resolve(fileResults);
+            } catch (parseError) {
+              console.error(`Error parsing output for file ${file}: ${parseError}`);
+              reject(new Error(`Error parsing RetireJS output for ${file}`));
+            }
+          }
+        });
+      });
+    });
+
+    Promise.allSettled(retirePromises)
+      .then(results => {
+        console.log(`RetireJS analysis completed for all files. Processing results...`);
+        results.forEach(result => {
+          if (result.status === 'fulfilled') {
+            console.log(`Successful analysis for a file. Result:`, result.value);
+          } else {
+            console.error(`Analysis failed for a file. Reason: ${result.reason}`);
+          }
+        });
+
+        const finalResults = results
+          .filter(result => result.status === 'fulfilled')
+          .flatMap(result => result.value.data || []);
+
+        callback(null, finalResults);
+      })
+      .catch(error => {
+        console.error(`Error during RetireJS analysis: ${error.message}`);
+        callback(error, null);
+      });
   });
 }
+
+
+
+// function analyzeJSLibraries(extensionPath, callback) {
+//   fs.readdir(extensionPath, (err, files) => {
+//     if (err) {
+//       return callback(`Error reading directory: ${err.message}`, null);
+//     }
+
+//     const retirePromises = files.map(file => {
+//       return new Promise((resolve, reject) => {
+//         const filePath = path.join(extensionPath, file);
+//         const retireCmd = `retire --path "${filePath}" --outputformat json`;
+
+//         exec(retireCmd, (error, stdout, stderr) => {
+//           if (error || stderr) {
+//             console.error(`Error in file ${file}: ${error || stderr}`);
+//             reject(new Error(`RetireJS analysis failed for ${file}`));
+//           } else {
+//             try {
+//               const fileResults = JSON.parse(stdout);
+//               resolve(fileResults);
+//             } catch (parseError) {
+//               console.error(`Error parsing output for file ${file}: ${parseError}`);
+//               reject(new Error(`Error parsing RetireJS output for ${file}`));
+//             }
+//           }
+//         });
+//       });
+//     });
+
+//     Promise.allSettled(retirePromises)
+//       .then(results => {
+//         const processedResults = results
+//           .filter(result => result.status === 'fulfilled')
+//           .flatMap(result => result.value.data || []);
+
+//         console.log('RetireJS analysis completed for files.');
+//         callback(null, processedResults);
+//       })
+//       .catch(error => {
+//         console.error(`Error during RetireJS analysis: ${error.message}`);
+//         callback(error, null);
+//       });
+//   });
+// }
+
 
 
 
