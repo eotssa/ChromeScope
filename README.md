@@ -1,3 +1,3 @@
 # chrome-extension-analyzer
 
-chrome-extension-analyzer.fly.io
+chrome-extension-analyzer.fly.dev
