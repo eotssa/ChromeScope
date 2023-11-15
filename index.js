@@ -15,11 +15,18 @@ const port = 3000;
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
-// Utility Functions
+// Define a base directory for temporary files outside your project directory
+const baseTempDir = 'C:\\Users\\Wilson\\Desktop\\TEMP';
+
 function createTempDirectory() {
-  const tempDir = path.join(os.tmpdir(), uuidv4());
-  fs.mkdirSync(tempDir);
-  return tempDir;
+    const tempDir = path.join(baseTempDir, uuidv4());
+
+    if (!fs.existsSync(baseTempDir)) {
+        fs.mkdirSync(baseTempDir, { recursive: true });
+    }
+
+    fs.mkdirSync(tempDir);
+    return tempDir;
 }
 
 function deleteTempDirectory(directoryPath) {
@@ -27,7 +34,6 @@ function deleteTempDirectory(directoryPath) {
     fs.rmSync(directoryPath, { recursive: true, force: true });
   }
 }
-
 
 
 app.get('/', (req, res) => {
@@ -88,11 +94,11 @@ app.post('/upload', upload.single('extensionFile'), (req, res) => {
           res.json(result);
         }
 
-        deleteTempDirectory(tempPath); // Clean up the temporary directory
+        //deleteTempDirectory(tempPath); // Clean up the temporary directory
       });
     } catch (error) {
       console.error(`Error processing file: ${error}`);
-      deleteTempDirectory(tempPath); // Clean up even in case of error
+      //deleteTempDirectory(tempPath); // Clean up even in case of error
       res.status(500).send('Error processing the file');
     }
   } else {
@@ -183,111 +189,91 @@ function findCSP(obj) {
   return null;
 }
 
+const { spawn } = require('child_process');
+
 
 function analyzeJSLibraries(extensionPath, callback) {
-  console.log(`Starting RetireJS analysis for directory: ${extensionPath}`);
+  console.log(`Starting RetireJS analysis for the directory: ${extensionPath}`);
 
-  fs.readdir(extensionPath, (err, files) => {
-    if (err) {
-      console.error(`Error reading directory: ${err.message}`);
-      return callback(`Error reading directory: ${err.message}`, null);
+  const retireCmd = `retire --jspath "${extensionPath}" --outputformat json`;
+
+  exec(retireCmd, { maxBuffer: 1024 * 1024 }, (error, stdout, stderr) => {
+    if (error) {
+      console.error(`Error during RetireJS analysis: ${error}`);
+      //return callback(`Error executing RetireJS: ${error.message}`, null);
+    } else if (stderr) {
+      console.log(`RetireJS stderr: ${stderr}`);
     }
 
-    console.log(`Files found for analysis: ${files.join(', ')}`);
+    try {
+      const results = JSON.parse(stdout);
+      console.log(results)
+      console.log(`RetireJS analysis completed. Results:`, results);
 
-    const retirePromises = files.map(file => {
-      return new Promise((resolve, reject) => {
-        const filePath = path.join(extensionPath, file);
-        const retireCmd = `retire --path "${filePath}" --outputformat json`;
-        console.log(`Executing RetireJS command: ${retireCmd}`);
-
-        exec(retireCmd, (error, stdout, stderr) => {
-          if (error || stderr) {
-            console.error(`Error in file ${file}: ${error || stderr}`);
-            reject(new Error(`RetireJS analysis failed for ${file}`));
-          } else {
-            try {
-              const fileResults = JSON.parse(stdout);
-              console.log(`RetireJS results for file ${file}:`, fileResults);
-              resolve(fileResults);
-            } catch (parseError) {
-              console.error(`Error parsing output for file ${file}: ${parseError}`);
-              reject(new Error(`Error parsing RetireJS output for ${file}`));
-            }
-          }
-        });
-      });
-    });
-
-    Promise.allSettled(retirePromises)
-      .then(results => {
-        console.log(`RetireJS analysis completed for all files. Processing results...`);
-        results.forEach(result => {
-          if (result.status === 'fulfilled') {
-            console.log(`Successful analysis for a file. Result:`, result.value);
-          } else {
-            console.error(`Analysis failed for a file. Reason: ${result.reason}`);
-          }
+      if (results.data && Array.isArray(results.data)) {
+        // Process each file's results
+        results.data.forEach(fileResult => {
+          // Additional processing can be done here
+          console.log(`Results for file:`, fileResult);
         });
 
-        const finalResults = results
-          .filter(result => result.status === 'fulfilled')
-          .flatMap(result => result.value.data || []);
-
-        callback(null, finalResults);
-      })
-      .catch(error => {
-        console.error(`Error during RetireJS analysis: ${error.message}`);
-        callback(error, null);
-      });
+        callback(null, results.data);
+      } else {
+        callback(null, []); // No data to process, return an empty array
+      }
+    } catch (parseError) {
+      console.error(`Error parsing RetireJS output: ${parseError}`);
+      callback(parseError, null);
+    }
   });
 }
 
 
 
-// function analyzeJSLibraries(extensionPath, callback) {
-//   fs.readdir(extensionPath, (err, files) => {
-//     if (err) {
-//       return callback(`Error reading directory: ${err.message}`, null);
-//     }
 
-//     const retirePromises = files.map(file => {
-//       return new Promise((resolve, reject) => {
-//         const filePath = path.join(extensionPath, file);
-//         const retireCmd = `retire --path "${filePath}" --outputformat json`;
+function calculateJSLibrariesScore(retireJsResults, jsLibrariesDetails) {
+  let score = 0;
 
-//         exec(retireCmd, (error, stdout, stderr) => {
-//           if (error || stderr) {
-//             console.error(`Error in file ${file}: ${error || stderr}`);
-//             reject(new Error(`RetireJS analysis failed for ${file}`));
-//           } else {
-//             try {
-//               const fileResults = JSON.parse(stdout);
-//               resolve(fileResults);
-//             } catch (parseError) {
-//               console.error(`Error parsing output for file ${file}: ${parseError}`);
-//               reject(new Error(`Error parsing RetireJS output for ${file}`));
-//             }
-//           }
-//         });
-//       });
-//     });
+  retireJsResults.forEach(fileResult => {
+    if (fileResult.results && fileResult.results.length > 0) {
+      fileResult.results.forEach(library => {
+        library.vulnerabilities.forEach((vulnerability, index) => {
+          // Assign a unique key for each vulnerability
+          const vulnKey = `${library.component}-vuln-${index}`;
 
-//     Promise.allSettled(retirePromises)
-//       .then(results => {
-//         const processedResults = results
-//           .filter(result => result.status === 'fulfilled')
-//           .flatMap(result => result.value.data || []);
+          // Update the score based on severity
+          switch (vulnerability.severity.toLowerCase()) {
+            case 'low':
+              score += 10;
+              break;
+            case 'medium':
+              score += 20;
+              break;
+            case 'high':
+              score += 30;
+              break;
+            case 'critical':
+              score += 40;
+              break;
+            default:
+              // No additional score for 'none'
+          }
 
-//         console.log('RetireJS analysis completed for files.');
-//         callback(null, processedResults);
-//       })
-//       .catch(error => {
-//         console.error(`Error during RetireJS analysis: ${error.message}`);
-//         callback(error, null);
-//       });
-//   });
-// }
+          // Store details of each vulnerability
+          jsLibrariesDetails[vulnKey] = {
+            component: library.component,
+            severity: vulnerability.severity.toLowerCase(),
+            info: vulnerability.info.join(", "),
+            summary: vulnerability.identifiers.summary,
+            CVE: vulnerability.identifiers.CVE ? vulnerability.identifiers.CVE.join(", ") : ''
+          };
+        });
+      });
+    }
+  });
+
+  return score;
+}
 
 
 
@@ -388,39 +374,3 @@ function analyzePermissions(manifest, permissionsDetails) {
   return score;
 }
 
-
-function calculateJSLibrariesScore(retireJsResults, jsLibrariesDetails) {
-  let score = 0;
-
-  retireJsResults.forEach(result => {
-    if (result.results && result.results.length > 0) {
-      result.results.forEach(vulnerability => {
-        if (vulnerability.severity) {
-          switch (vulnerability.severity.toLowerCase()) {
-          case 'low':
-            score += 10;
-            jsLibrariesDetails[vulnerability.component] = { severity: 'low', info: vulnerability.info };
-            break;
-          case 'medium':
-            score += 20;
-            jsLibrariesDetails[vulnerability.component] = { severity: 'medium', info: vulnerability.info };
-            break;
-          case 'high':
-            score += 30;
-            jsLibrariesDetails[vulnerability.component] = { severity: 'high', info: vulnerability.info };
-            break;
-          case 'critical':
-            score += 40;
-            jsLibrariesDetails[vulnerability.component] = { severity: 'critical', info: vulnerability.info };
-            break;
-          default:
-            // No additional score for 'none'
-            break;
-          }
-        }
-      });
-    }
-  });
-
-  return score;
-}

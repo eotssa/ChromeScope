@@ -33,8 +33,10 @@
         "@flydotio/dockerfile": "^0.4.10",
         "cross-env": "^7.0.3",
         "eslint": "^8.53.0",
+        "grunt": "^1.6.1",
         "jest": "^29.7.0",
         "nodemon": "^3.0.1",
+        "retire": "^4.3.4",
         "supertest": "^6.3.3"
     }
 }
