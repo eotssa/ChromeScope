@@ -1,0 +1,93 @@
+/* General Styles */
+body {
+  font-family: 'Arial', sans-serif;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  margin: 0;
+  background-color: #f4f7fa;
+  color: #333;
+}
+
+.app-container {
+  width: 80%;
+  max-width: 600px;
+  text-align: center;
+  padding: 30px;
+  background-color: #fff;
+  border-radius: 15px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+}
+
+/* File Upload Styles */
+.file-upload-box {
+  border: 2px dashed #007bff;
+  padding: 50px 20px;
+  margin-bottom: 30px;
+  border-radius: 10px;
+  transition: border-color 0.3s;
+}
+
+.file-upload-box:hover {
+  border-color: #0056b3;
+}
+
+input[type='file'] {
+  width: 90%;
+  margin: 0 auto 20px;
+  cursor: pointer;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  display: block;
+}
+
+/* Button Styles */
+button {
+  background-color: #007bff;
+  color: #fff;
+  border: none;
+  padding: 12px 30px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: bold;
+  transition: background-color 0.2s;
+  display: block;
+  margin: 20px auto; /* Centering the button */
+}
+
+button:hover {
+  background-color: #0056b3;
+}
+
+button:disabled {
+  background-color: #cccccc;
+  cursor: default;
+}
+
+/* Analysis Results */
+.analysis-results {
+  background-color: white; /* Or any color you prefer */
+  border: 1px solid #ccc; /* Light grey border */
+  border-radius: 4px; /* Rounded corners */
+  padding: 10px; /* Some padding inside the container */
+  max-height: 400px; /* Maximum height before scroll */
+  max-width: 100%; /* Maximum width to fit container */
+  overflow-y: auto; /* Enable vertical scrolling */
+  overflow-x: auto; /* Enable horizontal scrolling */
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1); /* Optional: Adds a shadow for some depth */
+  margin-bottom: 20px; /* Margin at the bottom */
+}
+
+/* Additional styles for pre element if necessary */
+.analysis-results pre {
+  white-space: pre-wrap; /* Wraps the text */
+  word-break: break-word; /* Breaks long words */
+}
+
+
+.error-message {
+  color: #ff4d4f;
+  margin-top: 20px;
+}
