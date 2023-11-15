@@ -3,7 +3,7 @@ const multer = require('multer');
 const admZip = require('adm-zip');
 const { exec } = require('child_process');
 const fs = require('fs');
-const os = require('os');
+//const os = require('os');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 
@@ -19,14 +19,14 @@ const upload = multer({ storage: storage });
 const baseTempDir = 'C:\\Users\\Wilson\\Desktop\\TEMP';
 
 function createTempDirectory() {
-    const tempDir = path.join(baseTempDir, uuidv4());
+  const tempDir = path.join(baseTempDir, uuidv4());
 
-    if (!fs.existsSync(baseTempDir)) {
-        fs.mkdirSync(baseTempDir, { recursive: true });
-    }
+  if (!fs.existsSync(baseTempDir)) {
+    fs.mkdirSync(baseTempDir, { recursive: true });
+  }
 
-    fs.mkdirSync(tempDir);
-    return tempDir;
+  fs.mkdirSync(tempDir);
+  return tempDir;
 }
 
 function deleteTempDirectory(directoryPath) {
@@ -94,11 +94,11 @@ app.post('/upload', upload.single('extensionFile'), (req, res) => {
           res.json(result);
         }
 
-        //deleteTempDirectory(tempPath); // Clean up the temporary directory
+        deleteTempDirectory(tempPath); // Clean up the temporary directory
       });
     } catch (error) {
       console.error(`Error processing file: ${error}`);
-      //deleteTempDirectory(tempPath); // Clean up even in case of error
+      deleteTempDirectory(tempPath); // Clean up even in case of error
       res.status(500).send('Error processing the file');
     }
   } else {
@@ -189,9 +189,6 @@ function findCSP(obj) {
   return null;
 }
 
-const { spawn } = require('child_process');
-
-
 function analyzeJSLibraries(extensionPath, callback) {
   console.log(`Starting RetireJS analysis for the directory: ${extensionPath}`);
 
@@ -208,13 +205,13 @@ function analyzeJSLibraries(extensionPath, callback) {
     try {
       const results = JSON.parse(stdout);
       console.log(results)
-      console.log(`RetireJS analysis completed. Results:`, results);
+      console.log('RetireJS analysis completed. Results:', results);
 
       if (results.data && Array.isArray(results.data)) {
         // Process each file's results
         results.data.forEach(fileResult => {
           // Additional processing can be done here
-          console.log(`Results for file:`, fileResult);
+          console.log('Results for file:', fileResult);
         });
 
         callback(null, results.data);
@@ -243,19 +240,19 @@ function calculateJSLibrariesScore(retireJsResults, jsLibrariesDetails) {
 
           // Update the score based on severity
           switch (vulnerability.severity.toLowerCase()) {
-            case 'low':
-              score += 10;
-              break;
-            case 'medium':
-              score += 20;
-              break;
-            case 'high':
-              score += 30;
-              break;
-            case 'critical':
-              score += 40;
-              break;
-            default:
+          case 'low':
+            score += 10;
+            break;
+          case 'medium':
+            score += 20;
+            break;
+          case 'high':
+            score += 30;
+            break;
+          case 'critical':
+            score += 40;
+            break;
+          default:
               // No additional score for 'none'
           }
 
@@ -263,9 +260,9 @@ function calculateJSLibrariesScore(retireJsResults, jsLibrariesDetails) {
           jsLibrariesDetails[vulnKey] = {
             component: library.component,
             severity: vulnerability.severity.toLowerCase(),
-            info: vulnerability.info.join(", "),
+            info: vulnerability.info.join(', '),
             summary: vulnerability.identifiers.summary,
-            CVE: vulnerability.identifiers.CVE ? vulnerability.identifiers.CVE.join(", ") : ''
+            CVE: vulnerability.identifiers.CVE ? vulnerability.identifiers.CVE.join(', ') : ''
           };
         });
       });
