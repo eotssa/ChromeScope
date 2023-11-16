@@ -122,30 +122,13 @@ app.listen(PORT, () => {
 function analyzeMetadata(manifest) {
   let score = 0;
 
-  // Lack of developer’s address
   if (!manifest.author) score += 1;
 
-  // Lack of developer’s email
   if (!manifest.developer || !manifest.developer.email) score += 1;
 
-  // Lack of privacy policy
   if (!manifest.privacy_policy) score += 1;
 
-  // Last Updated (you'll need to find a way to get this info, as it's not typically in manifest.json)
-  // ... your logic here ...
-
-  // Extension ratings (same as above, not in manifest.json)
-  // ... your logic here ...
-
-  // Less than 1000 users (same as above, not in manifest.json)
-  // ... your logic here ...
-
-  // Lack of support site
   if (!manifest.homepage_url) score += 1;
-
-  // Lack of website
-  // (Depends on how you differentiate this from the homepage URL)
-  // ... your logic here ...
 
   return score;
 }
@@ -270,33 +253,35 @@ function analyzePermissions(manifest, permissionsDetails) {
 
   // Risk scores for different permission categories
   const riskScores = {
-    'least': 0,
+    'least': 0, // No risk or negligible risk
     'low': 1,
     'medium': 2,
     'high': 3,
-    'critical': 4
+    'critical': 4 // Extremely high risk
   };
 
   // Map permissions to their respective risk categories
   const permissionRiskLevels = {
+    // Assigning permissions to 'least' risk
     'alarms': 'least',
     'contextMenus': 'least',
-    'browsingData': 'least',
     'enterprise.deviceAttributes': 'least',
     'fileBrowserHandler': 'least',
     'fontSettings': 'least',
     'gcm': 'least',
     'idle': 'least',
     'power': 'least',
-    'printerProvider': 'low',
     'system.cpu': 'least',
     'system.display': 'least',
     'system.memory': 'least',
     'tts': 'least',
     'unlimitedStorage': 'least',
     'wallpaper': 'least',
-    'activeTab': 'low',
-    'background': 'low',
+    'externally_connectable': 'least',
+    'mediaGalleries': 'least',
+
+    // Assigning permissions to 'low' risk
+    'printerProvider': 'low',
     'certificateProvider': 'low',
     'documentScan': 'low',
     'enterprise.platformKeys': 'low',
@@ -307,6 +292,12 @@ function analyzePermissions(manifest, permissionsDetails) {
     'platformKeys': 'low',
     'usbDevices': 'low',
     'webRequestBlocking': 'low',
+    'overrideEscFullscreen': 'low',
+
+
+    // Assigning permissions to 'medium' risk
+    'activeTab': 'medium',
+    'background': 'medium',
     'bookmarks': 'medium',
     'clipboardWrite': 'medium',
     'downloads': 'medium',
@@ -322,6 +313,10 @@ function analyzePermissions(manifest, permissionsDetails) {
     'topSites': 'medium',
     'ttsEngine': 'medium',
     'webNavigation': 'medium',
+    'syncFileSystem': 'medium', // Added
+    'fileSystem': 'medium', // Added
+
+    // Assigning permissions to 'high' risk
     'clipboardRead': 'high',
     'contentSettings': 'high',
     'desktopCapture': 'high',
@@ -339,13 +334,24 @@ function analyzePermissions(manifest, permissionsDetails) {
     'privacy': 'high',
     'proxy': 'high',
     'vpnProvider': 'high',
+    'browsingData': 'high',
+    'audioCapture': 'high',
+    'videoCapture': 'high',
+
+    // Assigning permissions to 'critical' risk
     'cookies': 'critical',
     'debugger': 'critical',
     'declarativeWebRequest': 'critical',
     'webRequest': 'critical',
     '<all_urls>': 'critical',
     '*://*/*': 'critical',
-    '*://*/': 'critical'
+    '*://*/': 'critical',
+    'content_security_policy': 'critical',
+    'declarativeNetRequest': 'critical',
+    'copresence': 'critical',
+    'usb': 'critical',
+    'unsafe-eval': 'critical',
+    'web_accessible_resources': 'critical'
   };
 
   permissions.forEach(permission => {
@@ -358,4 +364,5 @@ function analyzePermissions(manifest, permissionsDetails) {
 
   return score;
 }
+
 
