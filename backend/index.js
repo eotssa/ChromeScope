@@ -313,8 +313,8 @@ function analyzePermissions(manifest, permissionsDetails) {
     'topSites': 'medium',
     'ttsEngine': 'medium',
     'webNavigation': 'medium',
-    'syncFileSystem': 'medium', // Added
-    'fileSystem': 'medium', // Added
+    'syncFileSystem': 'medium',
+    'fileSystem': 'medium',
 
     // Assigning permissions to 'high' risk
     'clipboardRead': 'high',
