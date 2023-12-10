@@ -1,111 +1,99 @@
 const express = require('express');
+const router = express.Router();
 const multer = require('multer');
 const admZip = require('adm-zip');
-const { exec } = require('child_process');
-const fs = require('fs');
-//const os = require('os');
-const path = require('path');
-const { v4: uuidv4 } = require('uuid');
+const fs = require('fs'); // Used to read files
+const path = require('path'); // Used to get the file extension
+const { createTempDirectory, deleteTempDirectory } = require('../utils/fileUltils');
+const { exec } = require('child_process'); // Used to run retire.js as a command line tool
 
-const app = express();
-const port = 3000;
-
-//https://crxextractor.com/
 
 // Set up file storage
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
-// Define a base directory for temporary files outside your project directory
-const baseTempDir = 'C:\\Users\\Wilson\\Desktop\\TEMP';
-
-function createTempDirectory() {
-  const tempDir = path.join(baseTempDir, uuidv4());
-
-  if (!fs.existsSync(baseTempDir)) {
-    fs.mkdirSync(baseTempDir, { recursive: true });
-  }
-
-  fs.mkdirSync(tempDir);
-  return tempDir;
-}
-
-function deleteTempDirectory(directoryPath) {
-  if (fs.existsSync(directoryPath)) {
-    fs.rmSync(directoryPath, { recursive: true, force: true });
-  }
-}
-
-
-app.get('/', (req, res) => {
-  console.log('Received request at /');
-  res.send('Chrome Extension Analyzer is running');
-});
-
-app.listen(port, () => {
-  console.log(`Server is running on http://localhost:${port}`);
-});
-
-app.post('/upload', upload.single('extensionFile'), (req, res) => {
-  if (req.file) {
-    console.log(`Received file: ${req.file.originalname}`);
-
-    const tempPath = createTempDirectory(); // Create a temporary directory
-    try {
-      // First, read the manifest file from the zip
-      const zip = new admZip(req.file.buffer);
-      const manifest = JSON.parse(zip.readAsText('manifest.json'));
-
-      // Calculate scores based on the manifest
-      const details = {
-        metadataDetails: {},
-        cspDetails: {},
-        permissionsDetails: {},
-        jsLibrariesDetails: {}
-      };
-
-      const metadataScore = analyzeMetadata(manifest, details.metadataDetails);
-      const cspScore = analyzeCSP(manifest, details.cspDetails);
-      const permissionsScore = analyzePermissions(manifest, details.permissionsDetails);
-
-      // Then extract files for RetireJS analysis
-      console.log(`Extracting to temporary path: ${tempPath}`);
-      zip.extractAllTo(tempPath, true);
-
-      analyzeJSLibraries(tempPath, (err, retireJsResults) => {
-        if (err) {
-          console.error(`Error analyzing JavaScript libraries: ${err}`);
-          res.status(500).send('Error analyzing JavaScript libraries');
-        } else {
-          const jsLibrariesScore = calculateJSLibrariesScore(retireJsResults, details.jsLibrariesDetails);
-          const totalRiskScore = metadataScore + cspScore + permissionsScore + jsLibrariesScore;
-
-          const result = {
-            totalRiskScore: totalRiskScore,
-            breakdown: {
-              metadataScore: metadataScore,
-              cspScore: cspScore,
-              permissionsScore: permissionsScore,
-              jsLibrariesScore: jsLibrariesScore
-            },
-            details: details
-          };
-
-          console.log('Analysis Results:', JSON.stringify(result, null, 2));
-          res.json(result);
-        }
-
-        deleteTempDirectory(tempPath); // Clean up the temporary directory
-      });
-    } catch (error) {
-      console.error(`Error processing file: ${error}`);
-      deleteTempDirectory(tempPath); // Clean up even in case of error
-      res.status(500).send('Error processing the file');
+router.post('/', upload.single('extensionFile'), async (req, res, next) => {
+  try {
+    if (!req.file) {
+      res.status(400).send('No file uploaded');
+      return;
     }
-  } else {
-    res.status(400).send('No file uploaded');
+
+    const tempPath = createTempDirectory();
+    const zip = new admZip(req.file.buffer);
+    const manifest = JSON.parse(zip.readAsText('manifest.json')); // Assumes that manifest.json is present in the root directory of the extension
+
+    const details = {
+      metadataDetails: {},
+      cspDetails: {},
+      permissionsDetails: {},
+      jsLibrariesDetails: {},
+      chromeAPIUsage: {}
+    };
+
+    const metadataScore = analyzeMetadata(manifest, details.metadataDetails);
+    const cspScore = analyzeCSP(manifest, details.cspDetails);
+    const permissionsScore = analyzePermissions(manifest, details.permissionsDetails);
+
+    zip.extractAllTo(tempPath, true);
+    const retireJsResults = await analyzeJSLibraries(tempPath);
+    const jsLibrariesScore = calculateJSLibrariesScore(retireJsResults, details.jsLibrariesDetails);
+
+    const chromeAPIUsageDetails = await analyzeChromeAPIUsage(tempPath);
+    console.log('Chrome API Usage Details:', chromeAPIUsageDetails);
+
+    // Update this line to directly store the array of objects returned by analyzeChromeAPIUsage
+    details.chromeAPIUsage = chromeAPIUsageDetails;
+
+    // Incorporate Chrome API usage details into the result
+    const result = {
+      totalRiskScore: metadataScore + cspScore + permissionsScore + jsLibrariesScore,
+      breakdown: {
+        metadataScore,
+        cspScore,
+        permissionsScore,
+        jsLibrariesScore,
+        chromeAPIUsage: chromeAPIUsageDetails.length // Include this as an informative section
+      },
+      details
+    };
+
+    console.log('Analysis Results:', JSON.stringify(result, null, 2));
+    res.json(result);
+    deleteTempDirectory(tempPath);
+  } catch (err) {
+    next(err);
   }
 });
+
+
+
+async function analyzeChromeAPIUsage(directoryPath) {
+  let chromeAPIUsage = [];
+
+  const files = fs.readdirSync(directoryPath);
+
+  for (const file of files) {
+    const fullPath = path.join(directoryPath, file);
+    if (fs.statSync(fullPath).isDirectory()) {
+      // Recursively analyze nested directories
+      const nestedUsage = await analyzeChromeAPIUsage(fullPath);
+      chromeAPIUsage = [...chromeAPIUsage, ...nestedUsage];
+    } else if (path.extname(file) === '.js') {
+      const content = fs.readFileSync(fullPath, 'utf-8');
+      const regex = /chrome\.\w+/g; // Regex to find "chrome.[something]"
+      const matches = content.match(regex) || [];
+
+      matches.forEach(api => {
+        if (!chromeAPIUsage.some(usage => usage.api === api && usage.file === file)) {
+          chromeAPIUsage.push({ file, api });
+        }
+      });
+    }
+  }
+
+  return chromeAPIUsage;
+}
 
 
 
@@ -113,30 +101,13 @@ app.post('/upload', upload.single('extensionFile'), (req, res) => {
 function analyzeMetadata(manifest) {
   let score = 0;
 
-  // Lack of developer’s address
   if (!manifest.author) score += 1;
 
-  // Lack of developer’s email
   if (!manifest.developer || !manifest.developer.email) score += 1;
 
-  // Lack of privacy policy
   if (!manifest.privacy_policy) score += 1;
 
-  // Last Updated (you'll need to find a way to get this info, as it's not typically in manifest.json)
-  // ... your logic here ...
-
-  // Extension ratings (same as above, not in manifest.json)
-  // ... your logic here ...
-
-  // Less than 1000 users (same as above, not in manifest.json)
-  // ... your logic here ...
-
-  // Lack of support site
   if (!manifest.homepage_url) score += 1;
-
-  // Lack of website
-  // (Depends on how you differentiate this from the homepage URL)
-  // ... your logic here ...
 
   return score;
 }
@@ -168,8 +139,6 @@ function analyzeCSP(manifest, cspDetails) {
 }
 
 
-
-
 // Recursive function to find CSP in the manifest object
 function findCSP(obj) {
   if (typeof obj === 'object' && obj !== null) {
@@ -190,43 +159,23 @@ function findCSP(obj) {
   return null;
 }
 
-function analyzeJSLibraries(extensionPath, callback) {
-  console.log(`Starting RetireJS analysis for the directory: ${extensionPath}`);
-
-  const retireCmd = `retire --jspath "${extensionPath}" --outputformat json`;
-
-  exec(retireCmd, { maxBuffer: 1024 * 1024 }, (error, stdout, stderr) => {
-    if (error) {
-      console.error(`Error during RetireJS analysis: ${error}`);
-      //return callback(`Error executing RetireJS: ${error.message}`, null);
-    } else if (stderr) {
-      console.log(`RetireJS stderr: ${stderr}`);
-    }
-
-    try {
-      const results = JSON.parse(stdout);
-      console.log(results)
-      console.log('RetireJS analysis completed. Results:', results);
-
-      if (results.data && Array.isArray(results.data)) {
-        // Process each file's results
-        results.data.forEach(fileResult => {
-          // Additional processing can be done here
-          console.log('Results for file:', fileResult);
-        });
-
-        callback(null, results.data);
+async function analyzeJSLibraries(extensionPath) {
+  return new Promise((resolve, reject) => {
+    const retireCmd = `retire --jspath "${extensionPath}" --outputformat json`;
+    exec(retireCmd, { maxBuffer: 1024 * 1024 }, (error, stdout, stderr) => {
+      if (stderr) {
+        reject(error || stderr);
       } else {
-        callback(null, []); // No data to process, return an empty array
+        try {
+          const results = JSON.parse(stdout);
+          resolve(results.data || []);
+        } catch (parseError) {
+          reject(parseError);
+        }
       }
-    } catch (parseError) {
-      console.error(`Error parsing RetireJS output: ${parseError}`);
-      callback(parseError, null);
-    }
+    });
   });
 }
-
-
 
 
 function calculateJSLibrariesScore(retireJsResults, jsLibrariesDetails) {
@@ -283,33 +232,35 @@ function analyzePermissions(manifest, permissionsDetails) {
 
   // Risk scores for different permission categories
   const riskScores = {
-    'least': 0,
+    'least': 0, // No risk or negligible risk
     'low': 1,
     'medium': 2,
     'high': 3,
-    'critical': 4
+    'critical': 4 // Extremely high risk
   };
 
   // Map permissions to their respective risk categories
   const permissionRiskLevels = {
+    // Assigning permissions to 'least' risk
     'alarms': 'least',
     'contextMenus': 'least',
-    'browsingData': 'least',
     'enterprise.deviceAttributes': 'least',
     'fileBrowserHandler': 'least',
     'fontSettings': 'least',
     'gcm': 'least',
     'idle': 'least',
     'power': 'least',
-    'printerProvider': 'low',
     'system.cpu': 'least',
     'system.display': 'least',
     'system.memory': 'least',
     'tts': 'least',
     'unlimitedStorage': 'least',
     'wallpaper': 'least',
-    'activeTab': 'low',
-    'background': 'low',
+    'externally_connectable': 'least',
+    'mediaGalleries': 'least',
+
+    // Assigning permissions to 'low' risk
+    'printerProvider': 'low',
     'certificateProvider': 'low',
     'documentScan': 'low',
     'enterprise.platformKeys': 'low',
@@ -320,6 +271,12 @@ function analyzePermissions(manifest, permissionsDetails) {
     'platformKeys': 'low',
     'usbDevices': 'low',
     'webRequestBlocking': 'low',
+    'overrideEscFullscreen': 'low',
+
+
+    // Assigning permissions to 'medium' risk
+    'activeTab': 'medium',
+    'background': 'medium',
     'bookmarks': 'medium',
     'clipboardWrite': 'medium',
     'downloads': 'medium',
@@ -335,6 +292,10 @@ function analyzePermissions(manifest, permissionsDetails) {
     'topSites': 'medium',
     'ttsEngine': 'medium',
     'webNavigation': 'medium',
+    'syncFileSystem': 'medium',
+    'fileSystem': 'medium',
+
+    // Assigning permissions to 'high' risk
     'clipboardRead': 'high',
     'contentSettings': 'high',
     'desktopCapture': 'high',
@@ -352,13 +313,24 @@ function analyzePermissions(manifest, permissionsDetails) {
     'privacy': 'high',
     'proxy': 'high',
     'vpnProvider': 'high',
+    'browsingData': 'high',
+    'audioCapture': 'high',
+    'videoCapture': 'high',
+
+    // Assigning permissions to 'critical' risk
     'cookies': 'critical',
     'debugger': 'critical',
     'declarativeWebRequest': 'critical',
     'webRequest': 'critical',
     '<all_urls>': 'critical',
     '*://*/*': 'critical',
-    '*://*/': 'critical'
+    '*://*/': 'critical',
+    'content_security_policy': 'critical',
+    'declarativeNetRequest': 'critical',
+    'copresence': 'critical',
+    'usb': 'critical',
+    'unsafe-eval': 'critical',
+    'web_accessible_resources': 'critical'
   };
 
   permissions.forEach(permission => {
@@ -372,3 +344,7 @@ function analyzePermissions(manifest, permissionsDetails) {
   return score;
 }
 
+
+
+
+module.exports = router;
