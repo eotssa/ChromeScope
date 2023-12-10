@@ -69,7 +69,7 @@ router.post('/', upload.single('extensionFile'), async (req, res, next) => {
 
 
 async function analyzeChromeAPIUsage(directoryPath) {
-  let chromeAPIUsage = [];
+  let chromeAPIUsage = {};
 
   const files = fs.readdirSync(directoryPath);
 
@@ -78,15 +78,23 @@ async function analyzeChromeAPIUsage(directoryPath) {
     if (fs.statSync(fullPath).isDirectory()) {
       // Recursively analyze nested directories
       const nestedUsage = await analyzeChromeAPIUsage(fullPath);
-      chromeAPIUsage = [...chromeAPIUsage, ...nestedUsage];
+      for (const nestedFile in nestedUsage) {
+        if (!chromeAPIUsage[nestedFile]) {
+          chromeAPIUsage[nestedFile] = nestedUsage[nestedFile];
+        } else {
+          chromeAPIUsage[nestedFile].push(...nestedUsage[nestedFile]);
+        }
+      }
     } else if (path.extname(file) === '.js') {
       const content = fs.readFileSync(fullPath, 'utf-8');
-      const regex = /chrome\.\w+/g; // Regex to find "chrome.[something]"
+      const regex = /chrome\.\w+(\.\w+)?/g; // Updated regex to capture "chrome.api.something"
       const matches = content.match(regex) || [];
 
       matches.forEach(api => {
-        if (!chromeAPIUsage.some(usage => usage.api === api && usage.file === file)) {
-          chromeAPIUsage.push({ file, api });
+        if (!chromeAPIUsage[file]) {
+          chromeAPIUsage[file] = [api];
+        } else if (!chromeAPIUsage[file].includes(api)) {
+          chromeAPIUsage[file].push(api);
         }
       });
     }
