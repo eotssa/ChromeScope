@@ -154,27 +154,8 @@ app.listen(3000, () => {
 });
 ```
 
-## Endpoint Details
-
-### POST /
-
-- **Body**: `multipart/form-data` with a field `extensionFile` for the ZIP file.
-- **Response**: JSON object with detailed analysis of the Chrome extension.
-
-## Integration with SIEMs
-
-The module's output can be configured to be compatible with various SIEM systems. The JSON response format facilitates easy ingestion and analysis of security data, allowing for automated alerts and reporting within a SIEM environment.
-
-## Security Considerations
-
-- Implement appropriate file size limits and content type checks for uploads.
-- Consider running security-sensitive operations (like ESLint) in isolated environments.
-
 ## Contribution
 
 Contributions to enhance the module's functionality, especially regarding its integration with different SIEM systems, are welcome.
 
----
-
-This README provides a basic overview and instructions for integrating the module into SIEM systems for automated Chrome extension analysis. Adjustments can be made to fit specific deployment environments and requirements.
 
