@@ -1,56 +1,180 @@
-# chrome-extension-analyzer
+
+# ChromeScope
+
+## Test the functionality yourself with a simple front end interface.
 
 chrome-extension-analyzer.fly.dev
 
+## Overview
 
-Creating a README for your GitHub repository is a great way to explain and document your project. Here's a template for a README that matches the code you provided. This README includes sections commonly found in open-source projects, such as a description, installation instructions, usage, and contribution guidelines.
+This Node.js Express router module is designed for integration into Security Information and Event Management (SIEM) systems. It provides automated analysis of Chrome extensions, offering insights into security, permissions, and code quality. The module accepts a ZIP file containing a Chrome extension, performs various analyses, and returns a JSON file as its response data. 
 
-```markdown
-# Browser Extension Analysis Tool
+## Example JSON Output
 
-## Description
+```
+{
+    "totalRiskScore": 200,
+    "breakdown": {
+        "metadataScore": 4,
+        "cspScore": 1,
+        "permissionsScore": 15,
+        "jsLibrariesScore": 180,
+        "chromeAPIUsage": 5,
+        "eslintIssues": 781
+    },
+    "details": {
+        "metadataDetails": {},
+        "cspDetails": {
+            "script-src": [
+                "https://ssl.google-analytics.com"
+            ]
+        },
+        "permissionsDetails": {
+            "tabs": "Permission 'tabs' classified as medium risk.",
+            "webRequest": "Permission 'webRequest' classified as critical risk.",
+            "webRequestBlocking": "Permission 'webRequestBlocking' classified as low risk.",
+            "webNavigation": "Permission 'webNavigation' classified as medium risk.",
+            "<all_urls>": "Permission '<all_urls>' classified as critical risk.",
+            "storage": "Permission 'storage' classified as medium risk."
+        },
+        "jsLibrariesDetails": {
+            "jquery-vuln-0": {
+                "component": "jquery",
+                "severity": "medium",
+                "info": "http://blog.jquery.com/2016/01/08/jquery-2-2-and-1-12-released/, http://research.insecurelabs.org/jquery/test/, https://bugs.jquery.com/ticket/11974, https://github.com/advisories/GHSA-rmxg-73gg-4p98, https://github.com/jquery/jquery/issues/2432, https://nvd.nist.gov/vuln/detail/CVE-2015-9251",
+                "summary": "3rd party CORS request may execute",
+                "CVE": "CVE-2015-9251"
+            },
+            "jquery-vuln-1": {
+                "component": "jquery",
+                "severity": "low",
+                "info": "https://github.com/jquery/jquery.com/issues/162",
+                "summary": "jQuery 1.x and 2.x are End-of-Life and no longer receiving security updates",
+                "CVE": ""
+            },
+            "jquery-vuln-2": {
+                "component": "jquery",
+                "severity": "medium",
+                "info": "https://blog.jquery.com/2019/04/10/jquery-3-4-0-released/, https://github.com/jquery/jquery/commit/753d591aea698e57d6db58c9f722cd0808619b1b, https://nvd.nist.gov/vuln/detail/CVE-2019-11358",
+                "summary": "jQuery before 3.4.0, as used in Drupal, Backdrop CMS, and other products, mishandles jQuery.extend(true, {}, ...) because of Object.prototype pollution",
+                "CVE": "CVE-2019-11358"
+            },
+        },
+        "chromeAPIUsage": {
+            "\\tmp\\0c850879-580b-4c10-9180-1386fa9e5f0f\\public_static\\3sm\\foner.js": [
+                "chrome.runtime.sendMessage"
+            ],
+            "\\tmp\\0c850879-580b-4c10-9180-1386fa9e5f0f\\public_static\\3sm\\notifier.js": [
+                "chrome.runtime.sendMessage"
+            ],
+            "\\tmp\\0c850879-580b-4c10-9180-1386fa9e5f0f\\public_static\\back\\dommer.js": [
+                "chrome.storage.local",
+                "chrome.runtime.lastError",
+                "chrome.tabs.onUpdated",
+                "chrome.webRequest.onBeforeRedirect",
+                "chrome.runtime.onInstalled",
+                "chrome.webNavigation.onCreatedNavigationTarget",
+                "chrome.runtime.onMessage",
+                "chrome.tabs.onRemoved",
+                "chrome.tabs.query"
+            ],
+            "\\tmp\\0c850879-580b-4c10-9180-1386fa9e5f0f\\public_static\\back\\utils.js": [
+                "chrome.tabs.remove",
+                "chrome.storage.local",
+                "chrome.tabs.executeScript",
+                "chrome.webRequest.onHeadersReceived",
+                "chrome.webRequest.onBeforeRequest"
+            ],
+            "\\tmp\\0c850879-580b-4c10-9180-1386fa9e5f0f\\public_static\\pupik\\index.js": [
+                "chrome.runtime.sendMessage",
+                "chrome.storage.local"
+            ]
+        },
+        "dataHandling": {
+            "\\tmp\\0c850879-580b-4c10-9180-1386fa9e5f0f\\public_static\\3sm\\jquery-2.1.3.min.js": {
+                "apiCalls": 2
+            },
+        },
+        "eslintDetails": {
+            "totalIssues": 781,
+            "errors": 7,
+            "warnings": 774,
+            "commonIssues": {
+                "null": 7,
+                "security/detect-object-injection": 746,
+                "security/detect-non-literal-regexp": 28
+            }
+        }
+    }
+}
+```
 
-This project provides a tool for analyzing browser extensions. It includes a range of checks and analyses to ensure the security and reliability of browser extensions. The tool evaluates various aspects of an extension, such as metadata, Content Security Policy (CSP), permissions, JavaScript library vulnerabilities, and Chrome API usage. It also integrates ESLint with the `eslint-plugin-security` for static code analysis focused on security-related issues.
+## Features
 
-## Installation
+- **File Upload and Extraction**: Processes ZIP files containing Chrome extensions.
+- **Manifest Analysis**: Evaluates metadata, Content Security Policy (CSP), and permissions.
+- **JavaScript Analysis**: Includes ESLint checks with the `eslint-plugin-security` for security-focused code quality assessment.
+- **Chrome API and Data Handling Analysis**: Examines Chrome API usage and data handling practices within the extension.
+- **JavaScript Library Vulnerability Analysis**: Uses `retire.js` for identifying known vulnerabilities in JavaScript libraries.
 
-To set up this project locally, you'll need to have Node.js and npm installed. Follow these steps:
+## Getting Started
 
-1. **Clone the Repository**
+### Prerequisites
 
+Ensure the following dependencies are installed in your project:
+- Node.js and npm
+- Express
+- Multer
+- adm-zip
+- fs and path (Node.js core modules)
+- child_process (Node.js core module)
+- ESLint with `eslint-plugin-security`
+
+### Installation
+
+1. Clone or download this module into your project.
+2. Install the required dependencies via npm:
    ```bash
-   git clone https://github.com/your-username/your-repository.git
-   cd your-repository
+   npm install express multer adm-zip eslint eslint-plugin-security
    ```
 
-2. **Install Dependencies**
+### Usage
 
-   Inside the cloned directory, install the necessary dependencies:
+Integrate the module into your existing Express application. Set up a route to handle POST requests where the Chrome extension ZIP file will be uploaded.
 
-   ```bash
-   npm install
-   ```
+```javascript
+const express = require('express');
+const app = express();
+const chromeExtensionAnalysisRouter = require('./path/to/this/module');
 
-## Usage
+app.use('/', chromeExtensionAnalysisRouter);
 
-To use this tool, start the server and upload a browser extension file (in ZIP format). The tool will then perform various analyses and return a comprehensive report.
+app.listen(3000, () => {
+  console.log('Server running on port 3000');
+});
+```
 
-1. **Start the Server**
+## Endpoint Details
 
-   ```bash
-   npm start
-   ```
+### POST /
 
-2. **Upload an Extension**
+- **Body**: `multipart/form-data` with a field `extensionFile` for the ZIP file.
+- **Response**: JSON object with detailed analysis of the Chrome extension.
 
-   Make a POST request to `http://localhost:3000/` with a browser extension file. This can be done using a REST client or a form in a frontend application.
+## Integration with SIEMs
 
-3. **View the Analysis Report**
+The module's output can be configured to be compatible with various SIEM systems. The JSON response format facilitates easy ingestion and analysis of security data, allowing for automated alerts and reporting within a SIEM environment.
 
-   The response will contain a detailed analysis report of the browser extension.
+## Security Considerations
 
+- Implement appropriate file size limits and content type checks for uploads.
+- Consider running security-sensitive operations (like ESLint) in isolated environments.
 
-## License
+## Contribution
 
-This project is licensed under the [MIT License](LINK_TO_LICENSE).
+Contributions to enhance the module's functionality, especially regarding its integration with different SIEM systems, are welcome.
+
+---
+
+This README provides a basic overview and instructions for integrating the module into SIEM systems for automated Chrome extension analysis. Adjustments can be made to fit specific deployment environments and requirements.
 
