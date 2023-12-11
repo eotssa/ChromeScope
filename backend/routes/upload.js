@@ -21,33 +21,29 @@ router.post('/', upload.single('extensionFile'), async (req, res, next) => {
 
     const tempPath = createTempDirectory();
     const zip = new admZip(req.file.buffer);
-    const manifest = JSON.parse(zip.readAsText('manifest.json')); // Assumes that manifest.json is present in the root directory of the extension
-
-    const details = {
-      metadataDetails: {},
-      cspDetails: {},
-      permissionsDetails: {},
-      jsLibrariesDetails: {},
-      chromeAPIUsage: {}
-    };
-
-    const metadataScore = analyzeMetadata(manifest, details.metadataDetails);
-    const cspScore = analyzeCSP(manifest, details.cspDetails);
-    const permissionsScore = analyzePermissions(manifest, details.permissionsDetails);
-
     zip.extractAllTo(tempPath, true);
-    const retireJsResults = await analyzeJSLibraries(tempPath);
-    const jsLibrariesScore = calculateJSLibrariesScore(retireJsResults, details.jsLibrariesDetails);
 
-    const chromeAPIUsageDetails = await analyzeChromeAPIUsage(tempPath);
-    console.log('Chrome API Usage Details:', chromeAPIUsageDetails);
-    details.chromeAPIUsage = chromeAPIUsageDetails;
-  
-    // ESLint Analysis
+    // Read the manifest.json file
+    const manifest = JSON.parse(zip.readAsText('manifest.json'));
+
+    // Analyze metadata, CSP, and permissions
+    const metadataScore = analyzeMetadata(manifest);
+    const { score: cspScore, cspDetails } = analyzeCSP(manifest);
+    const { score: permissionsScore, permissionsDetails } = analyzePermissions(manifest);
+
+    // Read all .js files in the extracted directory
+    const fileContents = await readFiles(tempPath);
+
+    // Perform Chrome API Usage and Data Handling analysis
+    const chromeAPIUsageDetails = analyzeChromeAPIUsage(fileContents);
+    const dataHandlingDetails = analyzeDataHandling(fileContents);
+
+    // Analyze JavaScript libraries and ESLint
+    const retireJsResults = await analyzeJSLibraries(tempPath);
+    const { score: jsLibrariesScore, jsLibrariesDetails } = calculateJSLibrariesScore(retireJsResults);
     const eslintResults = await runESLintOnDirectory(tempPath);
-    details.eslintDetails = eslintResults;
-  
-    // Incorporate ESLint details into the result
+
+    // Compile the results into a single object
     const result = {
       totalRiskScore: metadataScore + cspScore + permissionsScore + jsLibrariesScore,
       breakdown: {
@@ -55,12 +51,20 @@ router.post('/', upload.single('extensionFile'), async (req, res, next) => {
         cspScore,
         permissionsScore,
         jsLibrariesScore,
-        chromeAPIUsage: chromeAPIUsageDetails.length, // Include this as an informative section
-        eslintIssues: eslintResults.length // Add this line
+        chromeAPIUsage: Object.keys(chromeAPIUsageDetails).length, 
+        eslintIssues: eslintResults.totalIssues 
       },
-      details
+      details: {
+        metadataDetails: {}, // Populate as needed
+        cspDetails, 
+        permissionsDetails,
+        jsLibrariesDetails, // Populate as needed
+        chromeAPIUsage: chromeAPIUsageDetails,
+        dataHandling: dataHandlingDetails,
+        eslintDetails: eslintResults
+      }
     };
-  
+
     console.log('Analysis Results:', JSON.stringify(result, null, 2));
     res.json(result);
     deleteTempDirectory(tempPath);
@@ -70,8 +74,33 @@ router.post('/', upload.single('extensionFile'), async (req, res, next) => {
 });
 
 
+
+async function readFiles(directoryPath) {
+  let fileContents = {};
+
+  const files = fs.readdirSync(directoryPath);
+
+  for (const file of files) {
+    const fullPath = path.join(directoryPath, file);
+    if (fs.statSync(fullPath).isDirectory()) {
+      const nestedFiles = await readFiles(fullPath);
+      fileContents = { ...fileContents, ...nestedFiles };
+    } else if (path.extname(file) === '.js') {
+      const content = fs.readFileSync(fullPath, 'utf-8');
+      fileContents[fullPath] = content;
+    }
+  }
+
+  return fileContents;
+}
+
+
+
+
 const { ESLint } = require("eslint");
 
+//TODO: limit file size and minified files 
+//TOD: consider running eslint in a isolated environment / docker container
 async function runESLintOnDirectory(directoryPath) {
   const eslint = new ESLint({
     useEslintrc: false,
@@ -114,42 +143,52 @@ async function runESLintOnDirectory(directoryPath) {
 
 
 
+function analyzeDataHandling(fileContents) {
+  let dataHandlingUsage = {};
+
+  for (const file in fileContents) {
+    const content = fileContents[file];
+    const patterns = {
+      'apiCalls': /fetch\(|axios\.|XMLHttpRequest/g,
+      'localStorage': /localStorage\./g,
+      'cookies': /document\.cookie/g
+    };
+
+    Object.keys(patterns).forEach(key => {
+      const matches = content.match(patterns[key]) || [];
+      if (matches.length > 0) {
+        dataHandlingUsage[file] = dataHandlingUsage[file] || {};
+        dataHandlingUsage[file][key] = (dataHandlingUsage[file][key] || 0) + matches.length;
+      }
+    });
+  }
+
+  return dataHandlingUsage;
+}
 
 
-async function analyzeChromeAPIUsage(directoryPath) {
+
+
+function analyzeChromeAPIUsage(fileContents) {
   let chromeAPIUsage = {};
 
-  const files = fs.readdirSync(directoryPath);
+  for (const file in fileContents) {
+    const content = fileContents[file];
+    const regex = /chrome\.\w+(\.\w+)?/g;
+    const matches = content.match(regex) || [];
 
-  for (const file of files) {
-    const fullPath = path.join(directoryPath, file);
-    if (fs.statSync(fullPath).isDirectory()) {
-      // Recursively analyze nested directories
-      const nestedUsage = await analyzeChromeAPIUsage(fullPath);
-      for (const nestedFile in nestedUsage) {
-        if (!chromeAPIUsage[nestedFile]) {
-          chromeAPIUsage[nestedFile] = nestedUsage[nestedFile];
-        } else {
-          chromeAPIUsage[nestedFile].push(...nestedUsage[nestedFile]);
-        }
+    matches.forEach(api => {
+      if (!chromeAPIUsage[file]) {
+        chromeAPIUsage[file] = [api];
+      } else if (!chromeAPIUsage[file].includes(api)) {
+        chromeAPIUsage[file].push(api);
       }
-    } else if (path.extname(file) === '.js') {
-      const content = fs.readFileSync(fullPath, 'utf-8');
-      const regex = /chrome\.\w+(\.\w+)?/g; // Updated regex to capture "chrome.api.something"
-      const matches = content.match(regex) || [];
-
-      matches.forEach(api => {
-        if (!chromeAPIUsage[file]) {
-          chromeAPIUsage[file] = [api];
-        } else if (!chromeAPIUsage[file].includes(api)) {
-          chromeAPIUsage[file].push(api);
-        }
-      });
-    }
+    });
   }
 
   return chromeAPIUsage;
 }
+
 
 
 
@@ -168,8 +207,9 @@ function analyzeMetadata(manifest) {
   return score;
 }
 
-function analyzeCSP(manifest, cspDetails) {
+function analyzeCSP(manifest) {
   let score = 0;
+  let cspDetails = {}; // Initialize cspDetails
   const csp = findCSP(manifest);
 
   if (!csp) {
@@ -191,7 +231,7 @@ function analyzeCSP(manifest, cspDetails) {
     });
   }
 
-  return score;
+  return { score, cspDetails };
 }
 
 
@@ -234,34 +274,17 @@ async function analyzeJSLibraries(extensionPath) {
 }
 
 
-function calculateJSLibrariesScore(retireJsResults, jsLibrariesDetails) {
+function calculateJSLibrariesScore(retireJsResults) {
   let score = 0;
+  let jsLibrariesDetails = {}; // Initialize jsLibrariesDetails
 
   retireJsResults.forEach(fileResult => {
     if (fileResult.results && fileResult.results.length > 0) {
       fileResult.results.forEach(library => {
         library.vulnerabilities.forEach((vulnerability, index) => {
-          // Assign a unique key for each vulnerability
           const vulnKey = `${library.component}-vuln-${index}`;
+          score += determineVulnerabilityScore(vulnerability);
 
-          // Update the score based on severity
-          switch (vulnerability.severity.toLowerCase()) {
-          case 'low':
-            score += 10;
-            break;
-          case 'medium':
-            score += 20;
-            break;
-          case 'high':
-            score += 30;
-            break;
-          case 'critical':
-            score += 40;
-            break;
-          default:
-          }
-
-          // Store details of each vulnerability
           jsLibrariesDetails[vulnKey] = {
             component: library.component,
             severity: vulnerability.severity.toLowerCase(),
@@ -274,15 +297,31 @@ function calculateJSLibrariesScore(retireJsResults, jsLibrariesDetails) {
     }
   });
 
-  return score;
+  return { score, jsLibrariesDetails };
+}
+
+function determineVulnerabilityScore(vulnerability) {
+  switch (vulnerability.severity.toLowerCase()) {
+    case 'low':
+      return 10;
+    case 'medium':
+      return 20;
+    case 'high':
+      return 30;
+    case 'critical':
+      return 40;
+    default:
+      return 0;
+  }
 }
 
 
 
 
-
-function analyzePermissions(manifest, permissionsDetails) {
+function analyzePermissions(manifest) {
   let score = 0;
+  let permissionsDetails = {}; // Initialize permissionsDetails object
+
   const permissions = (manifest.permissions || []).concat(manifest.optional_permissions || []);
 
   // Risk scores for different permission categories
@@ -391,12 +430,13 @@ function analyzePermissions(manifest, permissionsDetails) {
   permissions.forEach(permission => {
     const riskLevel = permissionRiskLevels[permission] || 'least';
     score += riskScores[riskLevel];
+
     if (riskLevel !== 'least') {
       permissionsDetails[permission] = `Permission '${permission}' classified as ${riskLevel} risk.`;
     }
   });
 
-  return score;
+  return { score, permissionsDetails };
 }
 
 
