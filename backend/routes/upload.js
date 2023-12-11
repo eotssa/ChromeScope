@@ -55,10 +55,10 @@ router.post('/', upload.single('extensionFile'), async (req, res, next) => {
         eslintIssues: eslintResults.totalIssues 
       },
       details: {
-        metadataDetails: {}, // Populate as needed
+        metadataDetails: {}, 
         cspDetails, 
         permissionsDetails,
-        jsLibrariesDetails, // Populate as needed
+        jsLibrariesDetails,
         chromeAPIUsage: chromeAPIUsageDetails,
         dataHandling: dataHandlingDetails,
         eslintDetails: eslintResults
@@ -112,7 +112,7 @@ async function runESLintOnDirectory(directoryPath) {
 
   const results = await eslint.lintFiles([`${directoryPath}/**/*.js`]);
 
-  // Initialize a summary object
+
   let summary = {
     totalIssues: 0,
     errors: 0,
@@ -146,14 +146,22 @@ async function runESLintOnDirectory(directoryPath) {
 function analyzeDataHandling(fileContents) {
   let dataHandlingUsage = {};
 
+  const patterns = {
+    'apiCalls': /fetch\(|axios\.|XMLHttpRequest/g,
+    'localStorage': /localStorage\./g,
+    'sessionStorage': /sessionStorage\./g,
+    'indexedDB': /indexedDB\.open/g,
+    'webSQL': /openDatabase\(/g,
+    'cookies': /document\.cookie/g,
+    'fileAPI': /FileReader\(/g,
+    'webWorkers': /new Worker\(/g,
+    'cryptoAPI': /crypto\.subtle\./g,
+    'dynamicEval': /eval\(|new Function\(/g
+  };
+
   for (const file in fileContents) {
     const content = fileContents[file];
-    const patterns = {
-      'apiCalls': /fetch\(|axios\.|XMLHttpRequest/g,
-      'localStorage': /localStorage\./g,
-      'cookies': /document\.cookie/g
-    };
-
+    
     Object.keys(patterns).forEach(key => {
       const matches = content.match(patterns[key]) || [];
       if (matches.length > 0) {
@@ -165,6 +173,7 @@ function analyzeDataHandling(fileContents) {
 
   return dataHandlingUsage;
 }
+
 
 
 
@@ -276,7 +285,7 @@ async function analyzeJSLibraries(extensionPath) {
 
 function calculateJSLibrariesScore(retireJsResults) {
   let score = 0;
-  let jsLibrariesDetails = {}; // Initialize jsLibrariesDetails
+  let jsLibrariesDetails = {}; 
 
   retireJsResults.forEach(fileResult => {
     if (fileResult.results && fileResult.results.length > 0) {
@@ -320,11 +329,11 @@ function determineVulnerabilityScore(vulnerability) {
 
 function analyzePermissions(manifest) {
   let score = 0;
-  let permissionsDetails = {}; // Initialize permissionsDetails object
+  let permissionsDetails = {}; 
 
   const permissions = (manifest.permissions || []).concat(manifest.optional_permissions || []);
 
-  // Risk scores for different permission categories
+
   const riskScores = {
     'least': 0, // No risk or negligible risk
     'low': 1,
@@ -335,7 +344,7 @@ function analyzePermissions(manifest) {
 
   // Map permissions to their respective risk categories
   const permissionRiskLevels = {
-    // Assigning permissions to 'least' risk
+    // 'least' risk
     'alarms': 'least',
     'contextMenus': 'least',
     'enterprise.deviceAttributes': 'least',
@@ -353,7 +362,7 @@ function analyzePermissions(manifest) {
     'externally_connectable': 'least',
     'mediaGalleries': 'least',
 
-    // Assigning permissions to 'low' risk
+    // 'low' risk
     'printerProvider': 'low',
     'certificateProvider': 'low',
     'documentScan': 'low',
@@ -368,7 +377,7 @@ function analyzePermissions(manifest) {
     'overrideEscFullscreen': 'low',
 
 
-    // Assigning permissions to 'medium' risk
+    // 'medium' risk
     'activeTab': 'medium',
     'background': 'medium',
     'bookmarks': 'medium',
@@ -389,7 +398,7 @@ function analyzePermissions(manifest) {
     'syncFileSystem': 'medium',
     'fileSystem': 'medium',
 
-    // Assigning permissions to 'high' risk
+    // 'high' risk
     'clipboardRead': 'high',
     'contentSettings': 'high',
     'desktopCapture': 'high',
@@ -411,7 +420,7 @@ function analyzePermissions(manifest) {
     'audioCapture': 'high',
     'videoCapture': 'high',
 
-    // Assigning permissions to 'critical' risk
+    // 'critical' risk
     'cookies': 'critical',
     'debugger': 'critical',
     'declarativeWebRequest': 'critical',
