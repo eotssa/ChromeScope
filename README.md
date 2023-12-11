@@ -138,21 +138,6 @@ Ensure the following dependencies are installed in your project:
    npm install express multer adm-zip eslint eslint-plugin-security
    ```
 
-### Usage
-
-Integrate the module into your existing Express application. Set up a route to handle POST requests where the Chrome extension ZIP file will be uploaded.
-
-```javascript
-const express = require('express');
-const app = express();
-const chromeExtensionAnalysisRouter = require('./path/to/this/module');
-
-app.use('/', chromeExtensionAnalysisRouter);
-
-app.listen(3000, () => {
-  console.log('Server running on port 3000');
-});
-```
 
 ## Contribution
 
