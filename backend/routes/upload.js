@@ -2,8 +2,8 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const admZip = require('adm-zip');
-const fs = require('fs'); // Used to read files
-const path = require('path'); // Used to get the file extension
+const fs = require('fs'); 
+const path = require('path'); 
 const { createTempDirectory, deleteTempDirectory } = require('../utils/fileUltils');
 const { exec } = require('child_process'); // Used to run retire.js as a command line tool
 
@@ -211,7 +211,6 @@ function calculateJSLibrariesScore(retireJsResults, jsLibrariesDetails) {
             score += 40;
             break;
           default:
-              // No additional score for 'none'
           }
 
           // Store details of each vulnerability
