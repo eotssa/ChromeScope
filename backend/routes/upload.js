@@ -65,7 +65,7 @@ router.post('/', upload.single('extensionFile'), async (req, res, next) => {
       }
     };
 
-    console.log('Analysis Results:', JSON.stringify(result, null, 2));
+    //console.log('Analysis Results:', JSON.stringify(result, null, 2));
     res.json(result);
     deleteTempDirectory(tempPath);
   } catch (err) {

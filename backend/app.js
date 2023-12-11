@@ -1,5 +1,3 @@
-// app.js
-
 const express = require('express');
 const cors = require('cors');
 const uploadRoutes = require('./routes/upload');

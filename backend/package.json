@@ -6,7 +6,7 @@
     "scripts": {
         "start": "node index.js",
         "dev": "cross-env NODE_ENV=development nodemon index.js",
-        "build:ui": "@powershell Remove-Item -Recurse -Force dist && cd ../chrome-extension-analyzer-frontend && npm run build && @powershell Copy-Item dist -Recurse ../backend",
+        "build:ui": "@powershell Remove-Item -Recurse -Force dist && cd ../frontend && npm run build && @powershell Copy-Item dist -Recurse ../backend",
         "deploy": "fly deploy",
         "deploy:full": "npm run build:ui && npm run deploy",
         "logs:prod": "fly logs",
