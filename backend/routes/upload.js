@@ -41,11 +41,13 @@ router.post('/', upload.single('extensionFile'), async (req, res, next) => {
 
     const chromeAPIUsageDetails = await analyzeChromeAPIUsage(tempPath);
     console.log('Chrome API Usage Details:', chromeAPIUsageDetails);
-
-    // Update this line to directly store the array of objects returned by analyzeChromeAPIUsage
     details.chromeAPIUsage = chromeAPIUsageDetails;
-
-    // Incorporate Chrome API usage details into the result
+  
+    // ESLint Analysis
+    const eslintResults = await runESLintOnDirectory(tempPath);
+    details.eslintDetails = eslintResults;
+  
+    // Incorporate ESLint details into the result
     const result = {
       totalRiskScore: metadataScore + cspScore + permissionsScore + jsLibrariesScore,
       breakdown: {
@@ -53,11 +55,12 @@ router.post('/', upload.single('extensionFile'), async (req, res, next) => {
         cspScore,
         permissionsScore,
         jsLibrariesScore,
-        chromeAPIUsage: chromeAPIUsageDetails.length // Include this as an informative section
+        chromeAPIUsage: chromeAPIUsageDetails.length, // Include this as an informative section
+        eslintIssues: eslintResults.length // Add this line
       },
       details
     };
-
+  
     console.log('Analysis Results:', JSON.stringify(result, null, 2));
     res.json(result);
     deleteTempDirectory(tempPath);
@@ -65,6 +68,51 @@ router.post('/', upload.single('extensionFile'), async (req, res, next) => {
     next(err);
   }
 });
+
+
+const { ESLint } = require("eslint");
+
+async function runESLintOnDirectory(directoryPath) {
+  const eslint = new ESLint({
+    useEslintrc: false,
+    baseConfig: {
+      plugins: ["security"],
+      extends: ["plugin:security/recommended"]
+    }
+  });
+
+  const results = await eslint.lintFiles([`${directoryPath}/**/*.js`]);
+
+  // Initialize a summary object
+  let summary = {
+    totalIssues: 0,
+    errors: 0,
+    warnings: 0,
+    commonIssues: {}
+  };
+
+  results.forEach(result => {
+    result.messages.forEach(msg => {
+      summary.totalIssues++;
+      if (msg.severity === 2) {
+        summary.errors++;
+      } else {
+        summary.warnings++;
+      }
+
+      // Increment count for each rule ID
+      if (summary.commonIssues[msg.ruleId]) {
+        summary.commonIssues[msg.ruleId]++;
+      } else {
+        summary.commonIssues[msg.ruleId] = 1;
+      }
+    });
+  });
+
+  return summary;
+}
+
+
 
 
 
