@@ -23,6 +23,10 @@ RUN apt-get update -qq && \
 # Install Retire.js globally
 RUN npm install -g retire
 
+# Install eslint globally
+RUN npm install -g eslint
+RUN npm install -g eslint-plugin-security
+
 # Install node modules
 COPY --link package-lock.json package.json ./
 RUN npm ci

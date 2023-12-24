@@ -204,7 +204,13 @@ const App = () => {
                   Innovating Extension Security - Comprehensive, Automated
                   Analysis for Enhanced Digital Trust.
                 </p>
-                <button className="btn btn-primary">Get Started</button>
+                <a
+                  href="https://github.com/eotssa/ChromeScope"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <button className="btn btn-primary">View Source Code</button>
+                </a>{" "}
               </div>
             </div>
             <div className="w-full px-4 lg:w-7/12 lg:px-8 xl:px-12">

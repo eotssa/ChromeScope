@@ -10,16 +10,16 @@ function calculateJSLibrariesScore(retireJsResults, jsLibrariesDetails) {
 
           // Update the score based on severity
           switch (vulnerability.severity.toLowerCase()) {
-          case 'low':
+          case "low":
             score += 10;
             break;
-          case 'medium':
+          case "medium":
             score += 20;
             break;
-          case 'high':
+          case "high":
             score += 30;
             break;
-          case 'critical':
+          case "critical":
             score += 40;
             break;
           default:
@@ -30,9 +30,9 @@ function calculateJSLibrariesScore(retireJsResults, jsLibrariesDetails) {
           jsLibrariesDetails[vulnKey] = {
             component: library.component,
             severity: vulnerability.severity.toLowerCase(),
-            info: vulnerability.info.join(', '),
+            info: vulnerability.info.join(", "),
             summary: vulnerability.identifiers.summary,
-            CVE: vulnerability.identifiers.CVE ? vulnerability.identifiers.CVE.join(', ') : ''
+            CVE: vulnerability.identifiers.CVE ? vulnerability.identifiers.CVE.join(", ") : ""
           };
         });
       });

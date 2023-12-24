@@ -1,8 +1,8 @@
-const fs = require('fs');
-const path = require('path');
-const { v4: uuidv4 } = require('uuid');
+const fs = require("fs");
+const path = require("path");
+const { v4: uuidv4 } = require("uuid");
 
-const baseTempDir = process.env.TEMP_DIR || '/tmp';
+const baseTempDir = process.env.TEMP_DIR || "/tmp";
 
 function createTempDirectory() {
   const tempDir = path.join(baseTempDir, uuidv4());
