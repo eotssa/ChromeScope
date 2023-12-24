@@ -34,6 +34,115 @@ const features = [
   },
 ]
 
+const placeholder = {
+  manifestDetails: {
+    name: "[redacted]",
+    version: "1.2",
+    description: "[redacted]",
+  },
+  totalRiskScore: 90,
+  breakdown: {
+    metadataScore: 4,
+    cspScore: 25,
+    permissionsScore: 1,
+    jsLibrariesScore: 60,
+    chromeAPIUsage: 6,
+    eslintIssues: 879,
+  },
+  details: {
+    metadataDetails: {},
+    cspDetails: {
+      noCSP: "No CSP present",
+    },
+    permissionsDetails: {
+      notifications: "Permission 'notifications' classified as low risk.",
+    },
+    jsLibrariesDetails: {
+      "jquery-vuln-0": {
+        component: "jquery",
+        severity: "medium",
+        info: "https://blog.jquery.com/2019/04/10/jquery-3-4-0-released/, https://github.com/jquery/jquery/commit/753d591aea698e57d6db58c9f722cd0808619b1b, https://nvd.nist.gov/vuln/detail/CVE-2019-11358",
+        summary:
+          "jQuery before 3.4.0, as used in Drupal, Backdrop CMS, and other products, mishandles jQuery.extend(true, {}, ...) because of Object.prototype pollution",
+        CVE: "CVE-2019-11358",
+      },
+      "jquery-vuln-1": {
+        component: "jquery",
+        severity: "medium",
+        info: "https://blog.jquery.com/2020/04/10/jquery-3-5-0-released/",
+        summary:
+          "passing HTML containing <option> elements from untrusted sources - even after sanitizing it - to one of jQuery's DOM manipulation methods (i.e. .html(), .append(), and others) may execute untrusted code.",
+        CVE: "CVE-2020-11023",
+      },
+      "jquery-vuln-2": {
+        component: "jquery",
+        severity: "medium",
+        info: "https://blog.jquery.com/2020/04/10/jquery-3-5-0-released/",
+        summary:
+          "Regex in its jQuery.htmlPrefilter sometimes may introduce XSS",
+        CVE: "CVE-2020-11022",
+      },
+    },
+    chromeAPIUsage: {
+      "\\tmp\\a820a5ef-2958-4399-aab6-48dd09cbbbdf\\js\\bg_chat.js": [
+        "chrome.runtime.onMessage",
+        "chrome.tabs.sendMessage",
+      ],
+      "\\tmp\\a820a5ef-2958-4399-aab6-48dd09cbbbdf\\js\\bg_general_functions.js":
+        [
+          "chrome.notifications",
+          "chrome.tabs.onRemoved",
+          "chrome.notifications.create",
+          "chrome.tabs.executeScript",
+          "chrome.tabs.query",
+          "chrome.tabs.update",
+          "chrome.runtime.onMessage",
+        ],
+      "\\tmp\\a820a5ef-2958-4399-aab6-48dd09cbbbdf\\js\\chat\\chat.js": [
+        "chrome.extension.getURL",
+        "chrome.runtime.sendMessage",
+        "chrome.runtime.onMessage",
+      ],
+      "\\tmp\\a820a5ef-2958-4399-aab6-48dd09cbbbdf\\js\\playerController - Copy.js":
+        ["chrome.runtime.sendMessage"],
+      "\\tmp\\a820a5ef-2958-4399-aab6-48dd09cbbbdf\\js\\playerController.js": [
+        "chrome.runtime.sendMessage",
+      ],
+      "\\tmp\\a820a5ef-2958-4399-aab6-48dd09cbbbdf\\js\\popup\\main.js": [
+        "chrome.extension.getBackgroundPage",
+        "chrome.runtime.getManifest",
+        "chrome.tabs.query",
+        "chrome.tabs.getSelected",
+        "chrome.tabs.create",
+        "chrome.tabs.executeScript",
+      ],
+    },
+    dataHandling: {
+      "\\tmp\\a820a5ef-2958-4399-aab6-48dd09cbbbdf\\jquery.js": {
+        apiCalls: 2,
+      },
+      "\\tmp\\a820a5ef-2958-4399-aab6-48dd09cbbbdf\\js\\peerjs.min.js": {
+        apiCalls: 2,
+      },
+      "\\tmp\\a820a5ef-2958-4399-aab6-48dd09cbbbdf\\semantic\\semantic.js": {
+        localStorage: 3,
+        sessionStorage: 7,
+      },
+    },
+    eslintDetails: {
+      totalIssues: 879,
+      errors: 6,
+      warnings: 873,
+      commonIssues: {
+        "security/detect-object-injection": 855,
+        "security/detect-non-literal-regexp": 14,
+        null: 6,
+        "security/detect-unsafe-regex": 4,
+      },
+    },
+  },
+}
+
 const App = () => {
   const [file, setFile] = useState(null)
   const [analysisResult, setAnalysisResult] = useState(null)
@@ -161,28 +270,18 @@ const App = () => {
                   ))}
                 </dl>
               </div>
-              <div className="grid grid-cols-2 grid-rows-2 gap-4 sm:gap-6 lg:gap-8">
-                <img
-                  src="https://tailwindui.com/img/ecommerce-images/product-feature-03-detail-01.jpg"
-                  alt="Walnut card tray with white powder coated steel divider and 3 punchout holes."
-                  className="rounded-lg bg-gray-100"
-                />
-                <img
-                  src="https://tailwindui.com/img/ecommerce-images/product-feature-03-detail-02.jpg"
-                  alt="Top down view of walnut card tray with embedded magnets and card groove."
-                  className="rounded-lg bg-gray-100"
-                />
-                <img
-                  src="https://tailwindui.com/img/ecommerce-images/product-feature-03-detail-03.jpg"
-                  alt="Side of walnut card tray with card groove and recessed card area."
-                  className="rounded-lg bg-gray-100"
-                />
-                <img
-                  src="https://tailwindui.com/img/ecommerce-images/product-feature-03-detail-04.jpg"
-                  alt="Walnut card tray filled with cards and card angled in dedicated groove."
-                  className="rounded-lg bg-gray-100"
-                />
-              </div>
+              <label className="form-control">
+                <div className="label">
+                  <span className="label-text">Response Data Example</span>
+                  <span className="label-text-alt">Alt label</span>
+                </div>
+                <textarea
+                  className="textarea textarea-bordered h-full w-full resize-none overflow-auto"
+                  placeholder={JSON.stringify(placeholder, null, 2)}
+                  style={{ minHeight: "600px" }} // Increased minHeight
+                ></textarea>
+                <div className="label"></div>
+              </label>
             </div>
           </div>
         </section>
