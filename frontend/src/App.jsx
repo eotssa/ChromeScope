@@ -277,9 +277,11 @@ const App = () => {
                 </dl>
               </div>
               <label className="form-control">
-                <div className="label">
-                  <span className="label-text">Response Data Example</span>
-                  <span className="label-text-alt">Alt label</span>
+                <div className="label mt-4">
+                  <span className="label-text text-lg font-medium">
+                    Response Data Example
+                  </span>
+                  <span className="label-text-alt"></span>
                 </div>
                 <textarea
                   className="textarea textarea-bordered h-full w-full resize-none overflow-auto"
