@@ -57,14 +57,19 @@ function bufferToStream(buffer) {
   return stream
 }
 
+const allowedHosts = [
+  "chrome.google.com",
+  "chromewebstore.google.com",
+  // Add any other hosts for future implementations ... e.g., Firefox
+]
+
 function getExtensionIdFromLink(urlOrId) {
-  // Updated Regex for extracting ID from a Chrome Web Store URL
   const urlPattern =
-    /^https?:\/\/(chrome\.google\.com\/webstore|chromewebstore\.google\.com)\/detail\/[a-zA-Z0-9\-_]+\/([a-zA-Z0-9]+)$/
+    /^https?:\/\/(chromewebstore\.google\.com)\/detail\/[a-zA-Z0-9\-_]+\/([a-zA-Z0-9]+)$/
   const idPattern = /^[a-zA-Z0-9]+$/ // Regex for matching a standalone ID
 
   const urlMatch = urlOrId.match(urlPattern)
-  if (urlMatch) {
+  if (urlMatch && allowedHosts.includes(urlMatch[1])) {
     return urlMatch[2] // Return the ID from the URL
   }
 
@@ -73,16 +78,18 @@ function getExtensionIdFromLink(urlOrId) {
     return urlOrId // Return the ID directly
   }
 
-  return null // Return null if neither pattern matches
+  return null // Return null if neither pattern matches or host is not allowed
 }
 
 router.post("/", upload.single("extensionFile"), async (req, res, next) => {
+  let tempPath = createTempDirectory() // unsure if it's safe to use this variable outside of the try block - required for finally block
+
   try {
     const extensionUrl = req.body.extensionUrl
     const extensionId = getExtensionIdFromLink(extensionUrl)
 
     if (!extensionId) {
-      return res.status(400).send("Invalid extension URL")
+      return res.status(400).send("Invalid or disallowed extension URL")
     }
 
     const downloadLink = buildDownloadLink(extensionId)
@@ -92,9 +99,6 @@ router.post("/", upload.single("extensionFile"), async (req, res, next) => {
     const crxBuffer = Buffer.from(response.data)
 
     const zipBuffer = parseCRX(crxBuffer)
-
-    // Create a temporary directory
-    const tempPath = createTempDirectory()
 
     // Use admZip to extract the ZIP buffer
     const zip = new admZip(zipBuffer)
@@ -162,6 +166,8 @@ router.post("/", upload.single("extensionFile"), async (req, res, next) => {
   } catch (err) {
     console.error(err)
     next(err)
+  } finally {
+    deleteTempDirectory(tempPath)
   }
 })
 
