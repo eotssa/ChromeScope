@@ -15,7 +15,10 @@ const { exec } = require("child_process") // Used to run retire.js as a command 
 
 // Set up file storage in memory
 const storage = multer.memoryStorage()
-const upload = multer({ storage: storage })
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 50 * 1024 * 1024 }, // 50 MB limit ---------
+})
 
 function buildDownloadLink(extensionId) {
   const baseUrl =
@@ -95,6 +98,7 @@ router.post("/", upload.single("extensionFile"), async (req, res, next) => {
     const downloadLink = buildDownloadLink(extensionId)
     const response = await axios.get(downloadLink, {
       responseType: "arraybuffer",
+      maxContentLength: 50 * 1024 * 1024, // Limit set to 50 MB
     })
     const crxBuffer = Buffer.from(response.data)
 
