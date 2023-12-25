@@ -28,7 +28,7 @@ function buildDownloadLink(extensionId) {
 
 function parseCRX(buffer) {
   const magic = buffer.readUInt32LE(0)
-  console.log(`Magic number: 0x${magic.toString(16)}`) // Should be 0x43723234 for 'Cr24'
+  //console.log(`Magic number: 0x${magic.toString(16)}`) // Should be 0x43723234 for 'Cr24'
 
   if (magic !== 0x34327243) {
     // 0x43723234 DEF NOT THIS? // SHOULD BE 0x34327243 -- https://searchfox.org/mozilla-central/source/modules/libjar/nsZipArchive.cpp
@@ -36,7 +36,7 @@ function parseCRX(buffer) {
   }
 
   const version = buffer.readUInt32LE(4)
-  console.log(`CRX version: ${version}`)
+  //console.log(`CRX version: ${version}`)
   let zipStart
 
   if (version === 2) {
@@ -433,7 +433,7 @@ function calculateJSLibrariesScore(retireJsResults) {
   let jsLibrariesDetails = {}
 
   // Debugging: log the retireJsResults to inspect the structure
-  console.log("Retire.js Results:", JSON.stringify(retireJsResults, null, 2))
+  //console.log("Retire.js Results:", JSON.stringify(retireJsResults, null, 2))
 
   retireJsResults.forEach((fileResult) => {
     fileResult?.results?.forEach((library) => {
