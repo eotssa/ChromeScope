@@ -175,19 +175,21 @@ router.post("/", upload.single("extensionFile"), async (req, res, next) => {
   }
 })
 
-async function readFiles(directoryPath) {
+async function readFiles(directoryPath, basePath = directoryPath) {
   let fileContents = {}
 
   const files = fs.readdirSync(directoryPath)
 
   for (const file of files) {
     const fullPath = path.join(directoryPath, file)
+    const relativePath = path.relative(basePath, fullPath) // Get relative path
+
     if (fs.statSync(fullPath).isDirectory()) {
-      const nestedFiles = await readFiles(fullPath)
+      const nestedFiles = await readFiles(fullPath, basePath)
       fileContents = { ...fileContents, ...nestedFiles }
     } else if (path.extname(file) === ".js") {
       const content = fs.readFileSync(fullPath, "utf-8")
-      fileContents[fullPath] = content
+      fileContents[relativePath] = content // Use relative path as key
     }
   }
 
