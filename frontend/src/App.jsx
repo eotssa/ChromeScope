@@ -1,7 +1,11 @@
 import React, { useState } from "react"
+import { useEffect } from "react"
+
 import axios from "axios"
 import "./index.css"
 import Layout from "./components/Layout"
+// import hljs from "highlight.js"
+// import "highlight.js/styles/atom-one-dark.css"
 
 const features = [
   {
@@ -35,111 +39,36 @@ const features = [
 ]
 
 const placeholder = {
-  manifestDetails: {
-    name: "[redacted]",
-    version: "1.2",
-    description: "[redacted]",
-  },
-  totalRiskScore: 90,
-  breakdown: {
-    metadataScore: 4,
-    cspScore: 25,
-    permissionsScore: 1,
-    jsLibrariesScore: 60,
-    chromeAPIUsage: 6,
-    eslintIssues: 879,
+  name: "",
+  version: "",
+  description: "",
+  totalRiskScore: "",
+  breakdownRiskScore: {
+    content_security_policy: "",
+    permissions: "",
+    jsLibrariesScore: "",
+    chromeAPIUsage: "",
+    eslintIssues_notScored: "",
   },
   details: {
-    metadataDetails: {},
-    cspDetails: {
-      noCSP: "No CSP present",
+    manifestAnalysis: {
+      manifestVersion: "",
+      cspDetails: {},
+      permissionsDetails: {},
+      backgroundScripts: [],
+      contentScriptsDomains: [],
+      webAccessibleResources: [],
+      externallyConnectable: [],
+      updateUrl: "",
+      oauth2: false,
+      specificOverrides: [],
+      developerInfo: {},
+      chromeOsKeys: [],
     },
-    permissionsDetails: {
-      notifications: "Permission 'notifications' classified as low risk.",
-    },
-    jsLibrariesDetails: {
-      "jquery-vuln-0": {
-        component: "jquery",
-        severity: "medium",
-        info: "https://blog.jquery.com/2019/04/10/jquery-3-4-0-released/, https://github.com/jquery/jquery/commit/753d591aea698e57d6db58c9f722cd0808619b1b, https://nvd.nist.gov/vuln/detail/CVE-2019-11358",
-        summary:
-          "jQuery before 3.4.0, as used in Drupal, Backdrop CMS, and other products, mishandles jQuery.extend(true, {}, ...) because of Object.prototype pollution",
-        CVE: "CVE-2019-11358",
-      },
-      "jquery-vuln-1": {
-        component: "jquery",
-        severity: "medium",
-        info: "https://blog.jquery.com/2020/04/10/jquery-3-5-0-released/",
-        summary:
-          "passing HTML containing <option> elements from untrusted sources - even after sanitizing it - to one of jQuery's DOM manipulation methods (i.e. .html(), .append(), and others) may execute untrusted code.",
-        CVE: "CVE-2020-11023",
-      },
-      "jquery-vuln-2": {
-        component: "jquery",
-        severity: "medium",
-        info: "https://blog.jquery.com/2020/04/10/jquery-3-5-0-released/",
-        summary:
-          "Regex in its jQuery.htmlPrefilter sometimes may introduce XSS",
-        CVE: "CVE-2020-11022",
-      },
-    },
-    chromeAPIUsage: {
-      "\\tmp\\a820a5ef-2958-4399-aab6-48dd09cbbbdf\\js\\bg_chat.js": [
-        "chrome.runtime.onMessage",
-        "chrome.tabs.sendMessage",
-      ],
-      "\\tmp\\a820a5ef-2958-4399-aab6-48dd09cbbbdf\\js\\bg_general_functions.js":
-        [
-          "chrome.notifications",
-          "chrome.tabs.onRemoved",
-          "chrome.notifications.create",
-          "chrome.tabs.executeScript",
-          "chrome.tabs.query",
-          "chrome.tabs.update",
-          "chrome.runtime.onMessage",
-        ],
-      "\\tmp\\a820a5ef-2958-4399-aab6-48dd09cbbbdf\\js\\chat\\chat.js": [
-        "chrome.extension.getURL",
-        "chrome.runtime.sendMessage",
-        "chrome.runtime.onMessage",
-      ],
-      "\\tmp\\a820a5ef-2958-4399-aab6-48dd09cbbbdf\\js\\playerController - Copy.js":
-        ["chrome.runtime.sendMessage"],
-      "\\tmp\\a820a5ef-2958-4399-aab6-48dd09cbbbdf\\js\\playerController.js": [
-        "chrome.runtime.sendMessage",
-      ],
-      "\\tmp\\a820a5ef-2958-4399-aab6-48dd09cbbbdf\\js\\popup\\main.js": [
-        "chrome.extension.getBackgroundPage",
-        "chrome.runtime.getManifest",
-        "chrome.tabs.query",
-        "chrome.tabs.getSelected",
-        "chrome.tabs.create",
-        "chrome.tabs.executeScript",
-      ],
-    },
-    dataHandling: {
-      "\\tmp\\a820a5ef-2958-4399-aab6-48dd09cbbbdf\\jquery.js": {
-        apiCalls: 2,
-      },
-      "\\tmp\\a820a5ef-2958-4399-aab6-48dd09cbbbdf\\js\\peerjs.min.js": {
-        apiCalls: 2,
-      },
-      "\\tmp\\a820a5ef-2958-4399-aab6-48dd09cbbbdf\\semantic\\semantic.js": {
-        localStorage: 3,
-        sessionStorage: 7,
-      },
-    },
-    eslintDetails: {
-      totalIssues: 879,
-      errors: 6,
-      warnings: 873,
-      commonIssues: {
-        "security/detect-object-injection": 855,
-        "security/detect-non-literal-regexp": 14,
-        null: 6,
-        "security/detect-unsafe-regex": 4,
-      },
-    },
+    jsLibrariesDetails: {},
+    chromeAPIUsage: {},
+    dataHandling: {},
+    eslintDetails: {},
   },
 }
 
@@ -151,6 +80,10 @@ const App = () => {
 
   const [searchInput, setSearchInput] = useState("")
   const [jsonData, setJsonData] = useState("")
+
+  useEffect(() => {
+    setJsonData(placeholder)
+  }, []) // Re-run highlighting when jsonData changes
 
   // Search Component
   const handleSearch = async (e) => {
@@ -176,7 +109,7 @@ const App = () => {
     }
   }
 
-  // Search Component
+  // Search Component -- useless
   const handleFileChange = async (e) => {
     const selectedFile = e.target.files[0]
     if (selectedFile) {
@@ -234,6 +167,16 @@ const App = () => {
     }
   }
 
+  // For buttons at bottom
+  const handleButtonClick = (url) => {
+    setSearchInput(url)
+    // Programmatically submit the form
+    // Assuming the form has a unique ID 'search-form'
+    document
+      .getElementById("search-form")
+      .dispatchEvent(new Event("submit", { cancelable: true }))
+  }
+
   return (
     <>
       <Layout>
@@ -248,18 +191,23 @@ const App = () => {
                   Innovating Extension Security - Comprehensive, Automated
                   Analysis for Enhanced Digital Trust.
                 </p>
-                <button className="btn btn-primary">Get Started</button>
+                <button className="btn btn-neutral">Get Started</button>
               </div>
             </div>
             <div className="w-full px-4 lg:w-7/12 lg:px-8 xl:px-12">
-              <div className="card w-full bg-base-100 shadow-xl">
+              <div className="card w-full bg-slate-200/60 shadow-xl">
                 <div className="card-body">
-                  <form onSubmit={handleSearch}>
+                  <form
+                    onSubmit={handleSearch}
+                    id="search-form"
+                    className="space-y-4"
+                  >
+                    {/* Search input */}
                     <div className="form-control">
                       <div className="relative">
                         <input
                           type="text"
-                          placeholder="Search"
+                          placeholder="Enter Chrome Extension URL or Extension ID"
                           className="input-neutral input input-bordered w-full pr-16"
                           value={searchInput}
                           onChange={(e) => setSearchInput(e.target.value)}
@@ -272,12 +220,53 @@ const App = () => {
                         </button>
                       </div>
                     </div>
-                  </form>
-                  {jsonData && (
-                    <div className="mt-4 max-h-96 overflow-auto rounded-lg bg-gray-100 p-4 text-left">
-                      <pre>{JSON.stringify(jsonData, null, 2)}</pre>
+
+                    {/* JSON Data Display */}
+                    <div className="form-control">
+                      {jsonData && (
+                        <div className="max-h-96 overflow-auto rounded-lg bg-gray-50 p-4 text-left">
+                          <pre className="text-xs antialiased font-light">
+                            {JSON.stringify(jsonData, null, 2)}
+                          </pre>
+                        </div>
+                      )}
                     </div>
-                  )}
+
+                    {/* Button group */}
+                    <div className="flex flex-wrap justify-center gap-2 mt-4">
+                      <button
+                        type="button"
+                        className="btn btn-neutral w-full sm:w-auto px-4"
+                        onClick={() =>
+                          handleButtonClick(
+                            "https://chromewebstore.google.com/detail/coffeelings/hcbddpppkcnfjifbcfnhmelpemdoepkk"
+                          )
+                        }
+                      >
+                        Coffeelings
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-neutral w-full sm:w-auto px-4"
+                        onClick={() =>
+                          handleButtonClick("ohdfhnkelpnfiamkjnfbbafnhleohmma")
+                        }
+                      >
+                        Youtube Party
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-neutral w-full sm:w-auto px-4"
+                        onClick={() =>
+                          handleButtonClick(
+                            "https://chromewebstore.google.com/detail/netflix-party-is-now-tele/oocalimimngaihdkbihfgmpkcpnmlaoa"
+                          )
+                        }
+                      >
+                        Teleparty
+                      </button>
+                    </div>
+                  </form>
                 </div>
               </div>
             </div>
@@ -288,18 +277,18 @@ const App = () => {
             <div className="mb-16 mt-5 w-full px-4 lg:w-5/12 lg:px-8 xl:px-12">
               <div className="text-left">
                 <h1 className="text-5xl font-bold">
-                  Automate Extension Risk Assessment
+                  Have a custom extension? Upload it here.
                 </h1>
                 <p className="py-6 text-lg font-medium">
-                  Innovating Extension Security - Comprehensive, Automated
-                  Analysis for Enhanced Digital Trust.
+                  Extensions uploaded for analysis are deleted and not stored on
+                  our servers.
                 </p>
                 <a
                   href="https://github.com/eotssa/ChromeScope"
                   target="_blank"
                   rel="noopener noreferrer"
                 >
-                  <button className="btn btn-primary">View Source Code</button>
+                  <button className="btn btn-neutral">View Source Code</button>
                 </a>{" "}
               </div>
             </div>
@@ -317,7 +306,7 @@ const App = () => {
                       </div>
                       <button
                         type="submit"
-                        className="btn btn-primary mt-4 mx-auto max-w "
+                        className="btn btn-neutral mt-4 mx-auto max-w "
                         disabled={loading}
                       >
                         Upload and Analyze
@@ -329,7 +318,9 @@ const App = () => {
                   )}
                   {analysisResult && (
                     <div className="mt-4 max-h-96 overflow-auto rounded-lg bg-gray-50 p-4 text-left">
-                      <pre>{JSON.stringify(analysisResult, null, 2)}</pre>
+                      <pre className="text-xs leading-relaxed">
+                        {JSON.stringify(analysisResult, null, 2)}
+                      </pre>
                     </div>
                   )}
                 </div>
