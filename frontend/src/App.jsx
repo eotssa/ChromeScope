@@ -1,7 +1,11 @@
 import React, { useState } from "react"
+import { useEffect } from "react"
+
 import axios from "axios"
 import "./index.css"
 import Layout from "./components/Layout"
+// import hljs from "highlight.js"
+// import "highlight.js/styles/atom-one-dark.css"
 
 const features = [
   {
@@ -35,111 +39,36 @@ const features = [
 ]
 
 const placeholder = {
-  manifestDetails: {
-    name: "[redacted]",
-    version: "1.2",
-    description: "[redacted]",
-  },
-  totalRiskScore: 90,
-  breakdown: {
-    metadataScore: 4,
-    cspScore: 25,
-    permissionsScore: 1,
-    jsLibrariesScore: 60,
-    chromeAPIUsage: 6,
-    eslintIssues: 879,
+  name: "",
+  version: "",
+  description: "",
+  totalRiskScore: "",
+  breakdownRiskScore: {
+    content_security_policy: "",
+    permissions: "",
+    jsLibrariesScore: "",
+    chromeAPIUsage: "",
+    eslintIssues_notScored: "",
   },
   details: {
-    metadataDetails: {},
-    cspDetails: {
-      noCSP: "No CSP present",
+    manifestAnalysis: {
+      manifestVersion: "",
+      cspDetails: {},
+      permissionsDetails: {},
+      backgroundScripts: [],
+      contentScriptsDomains: [],
+      webAccessibleResources: [],
+      externallyConnectable: [],
+      updateUrl: "",
+      oauth2: false,
+      specificOverrides: [],
+      developerInfo: {},
+      chromeOsKeys: [],
     },
-    permissionsDetails: {
-      notifications: "Permission 'notifications' classified as low risk.",
-    },
-    jsLibrariesDetails: {
-      "jquery-vuln-0": {
-        component: "jquery",
-        severity: "medium",
-        info: "https://blog.jquery.com/2019/04/10/jquery-3-4-0-released/, https://github.com/jquery/jquery/commit/753d591aea698e57d6db58c9f722cd0808619b1b, https://nvd.nist.gov/vuln/detail/CVE-2019-11358",
-        summary:
-          "jQuery before 3.4.0, as used in Drupal, Backdrop CMS, and other products, mishandles jQuery.extend(true, {}, ...) because of Object.prototype pollution",
-        CVE: "CVE-2019-11358",
-      },
-      "jquery-vuln-1": {
-        component: "jquery",
-        severity: "medium",
-        info: "https://blog.jquery.com/2020/04/10/jquery-3-5-0-released/",
-        summary:
-          "passing HTML containing <option> elements from untrusted sources - even after sanitizing it - to one of jQuery's DOM manipulation methods (i.e. .html(), .append(), and others) may execute untrusted code.",
-        CVE: "CVE-2020-11023",
-      },
-      "jquery-vuln-2": {
-        component: "jquery",
-        severity: "medium",
-        info: "https://blog.jquery.com/2020/04/10/jquery-3-5-0-released/",
-        summary:
-          "Regex in its jQuery.htmlPrefilter sometimes may introduce XSS",
-        CVE: "CVE-2020-11022",
-      },
-    },
-    chromeAPIUsage: {
-      "\\tmp\\a820a5ef-2958-4399-aab6-48dd09cbbbdf\\js\\bg_chat.js": [
-        "chrome.runtime.onMessage",
-        "chrome.tabs.sendMessage",
-      ],
-      "\\tmp\\a820a5ef-2958-4399-aab6-48dd09cbbbdf\\js\\bg_general_functions.js":
-        [
-          "chrome.notifications",
-          "chrome.tabs.onRemoved",
-          "chrome.notifications.create",
-          "chrome.tabs.executeScript",
-          "chrome.tabs.query",
-          "chrome.tabs.update",
-          "chrome.runtime.onMessage",
-        ],
-      "\\tmp\\a820a5ef-2958-4399-aab6-48dd09cbbbdf\\js\\chat\\chat.js": [
-        "chrome.extension.getURL",
-        "chrome.runtime.sendMessage",
-        "chrome.runtime.onMessage",
-      ],
-      "\\tmp\\a820a5ef-2958-4399-aab6-48dd09cbbbdf\\js\\playerController - Copy.js":
-        ["chrome.runtime.sendMessage"],
-      "\\tmp\\a820a5ef-2958-4399-aab6-48dd09cbbbdf\\js\\playerController.js": [
-        "chrome.runtime.sendMessage",
-      ],
-      "\\tmp\\a820a5ef-2958-4399-aab6-48dd09cbbbdf\\js\\popup\\main.js": [
-        "chrome.extension.getBackgroundPage",
-        "chrome.runtime.getManifest",
-        "chrome.tabs.query",
-        "chrome.tabs.getSelected",
-        "chrome.tabs.create",
-        "chrome.tabs.executeScript",
-      ],
-    },
-    dataHandling: {
-      "\\tmp\\a820a5ef-2958-4399-aab6-48dd09cbbbdf\\jquery.js": {
-        apiCalls: 2,
-      },
-      "\\tmp\\a820a5ef-2958-4399-aab6-48dd09cbbbdf\\js\\peerjs.min.js": {
-        apiCalls: 2,
-      },
-      "\\tmp\\a820a5ef-2958-4399-aab6-48dd09cbbbdf\\semantic\\semantic.js": {
-        localStorage: 3,
-        sessionStorage: 7,
-      },
-    },
-    eslintDetails: {
-      totalIssues: 879,
-      errors: 6,
-      warnings: 873,
-      commonIssues: {
-        "security/detect-object-injection": 855,
-        "security/detect-non-literal-regexp": 14,
-        null: 6,
-        "security/detect-unsafe-regex": 4,
-      },
-    },
+    jsLibrariesDetails: {},
+    chromeAPIUsage: {},
+    dataHandling: {},
+    eslintDetails: {},
   },
 }
 
@@ -149,13 +78,61 @@ const App = () => {
   const [loading, setLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState(null)
 
-  const handleFileChange = (e) => {
-    const selectedFile = e.target.files[0]
-    if (selectedFile) {
-      setFile(selectedFile)
+  const [searchInput, setSearchInput] = useState("")
+  const [jsonData, setJsonData] = useState("")
+
+  useEffect(() => {
+    setJsonData(placeholder)
+  }, []) // Re-run highlighting when jsonData changes
+
+  // Search Component
+  const handleSearch = async (e) => {
+    e.preventDefault()
+    if (!searchInput.trim()) {
+      setErrorMessage("Please enter a valid extension URL.")
+      return
+    }
+
+    try {
+      setLoading(true)
+      const response = await axios.post("http://localhost:3001/link", {
+        extensionUrl: searchInput.trim(),
+      })
+
+      setJsonData(response.data)
+      setErrorMessage(null)
+    } catch (error) {
+      console.error("Error in search:", error)
+      setErrorMessage("Error fetching data. Please try again.")
+    } finally {
+      setLoading(false)
     }
   }
 
+  // Search Component -- useless
+  const handleFileChange = async (e) => {
+    const selectedFile = e.target.files[0]
+    if (selectedFile) {
+      setFile(selectedFile) // Assuming you have a setter for setting file state
+
+      const formData = new FormData()
+      formData.append("extensionFile", selectedFile)
+
+      try {
+        const response = await axios.post("/your-upload-route", formData, {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+        })
+
+        setJsonData(response.data) // Assuming you have a setter for setting JSON data state
+      } catch (error) {
+        console.error("Error in file upload:", error)
+      }
+    }
+  }
+
+  // Upload Component
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!file) {
@@ -190,12 +167,22 @@ const App = () => {
     }
   }
 
+  // For buttons at bottom
+  const handleButtonClick = (url) => {
+    setSearchInput(url)
+    // Programmatically submit the form
+    // Assuming the form has a unique ID 'search-form'
+    document
+      .getElementById("search-form")
+      .dispatchEvent(new Event("submit", { cancelable: true }))
+  }
+
   return (
     <>
       <Layout>
         <section className="container mx-auto px-4 pt-32 lg:px-44">
           <div className="mx-auto flex max-w-7xl flex-wrap justify-center">
-            <div className="mb-16 mt-5 w-full px-4 lg:w-5/12 lg:px-8 xl:px-12">
+            <div className="mb-16 mt-12 w-full px-4 lg:w-5/12 lg:px-8 xl:px-12">
               <div className="text-left">
                 <h1 className="text-5xl font-bold">
                   Automate Extension Risk Assessment
@@ -205,16 +192,119 @@ const App = () => {
                   Analysis for Enhanced Digital Trust.
                 </p>
                 <a
+                  href="mailto:wilsonwu97@outlook.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <button className="btn bg-sky-500 text-neutral-200 text-lg rounded-none hover:bg-sky-600 px-4">
+                    Contact Me
+                  </button>
+                </a>
+              </div>
+            </div>
+            <div className="w-full px-4 lg:w-7/12 lg:px-8 xl:px-12">
+              <div className="card w-full bg-slate-200/60 shadow-xl">
+                <div className="card-body">
+                  <form
+                    onSubmit={handleSearch}
+                    id="search-form"
+                    className="space-y-4"
+                  >
+                    {/* Search input */}
+                    <div className="form-control">
+                      <div className="relative">
+                        <input
+                          type="text"
+                          placeholder="Enter Chrome Extension URL or Extension ID"
+                          className="input-neutral input input-bordered w-full pr-16"
+                          value={searchInput}
+                          onChange={(e) => setSearchInput(e.target.value)}
+                        />
+                        <button
+                          type="submit"
+                          className="btn bg-sky-500 text-slate-200 text-lg absolute right-0 top-0 rounded-l-none"
+                        >
+                          Search
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* JSON Data Display */}
+                    <div className="form-control">
+                      {jsonData && (
+                        <div className="max-h-96 overflow-auto rounded-lg bg-gray-50 p-4 text-left">
+                          <pre className="text-xs antialiased font-light">
+                            {JSON.stringify(jsonData, null, 2)}
+                          </pre>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Button group */}
+                    <div className="flex flex-wrap justify-center gap-2 mt-4">
+                      <button
+                        type="button"
+                        className="btn btn-outline text-md rounded-none  w-full sm:w-auto px-4"
+                        onClick={() =>
+                          handleButtonClick(
+                            "https://chromewebstore.google.com/detail/remindoro/njmniggbfobokemdjebnhmbldimkofkc"
+                          )
+                        }
+                      >
+                        Remindoro
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-outline text-md rounded-none w-full sm:w-auto px-4"
+                        onClick={() =>
+                          handleButtonClick("ohdfhnkelpnfiamkjnfbbafnhleohmma")
+                        }
+                      >
+                        Youtube Party
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-outline text-md rounded-none w-full sm:w-auto px-4"
+                        onClick={() =>
+                          handleButtonClick(
+                            "https://chromewebstore.google.com/detail/netflix-party-is-now-tele/oocalimimngaihdkbihfgmpkcpnmlaoa"
+                          )
+                        }
+                      >
+                        Teleparty
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+        {/* ------------------------------------------------------------------------------------------------------- */}
+        <section className="container mx-auto px-4 pt-32 lg:px-44">
+          <div className="mx-auto flex max-w-7xl flex-wrap justify-center">
+            <div className="mb-16 mt-5 w-full px-4 lg:w-5/12 lg:px-8 xl:px-12">
+              <div className="text-left">
+                <h1 className="text-5xl font-bold">
+                  Have a custom extension? Upload it here.
+                </h1>
+                <p className="py-6 text-lg font-medium">
+                  Extensions uploaded for analysis are deleted and not stored on
+                  our servers.
+                </p>
+                <a
                   href="https://github.com/eotssa/ChromeScope"
                   target="_blank"
                   rel="noopener noreferrer"
                 >
-                  <button className="btn btn-primary">View Source Code</button>
+                  <button className="btn bg-sky-500 text-neutral-200 text-lg rounded-none hover:bg-sky-600 px-4">
+                    View Source Code
+                  </button>
                 </a>{" "}
               </div>
             </div>
-            <div className="w-full px-4 lg:w-7/12 lg:px-8 xl:px-12">
-              <div className="card w-full bg-base-100 shadow-xl">
+            <div className="w-full px-4 py-6 lg:w-7/12 lg:px-8 xl:px-12">
+              <div className="card w-full bg-slate-200/60 shadow-xl">
                 <div className="card-body">
                   <form onSubmit={handleSubmit}>
                     <div className="form-control pt-6">
@@ -227,7 +317,7 @@ const App = () => {
                       </div>
                       <button
                         type="submit"
-                        className="btn btn-primary mt-4 mx-auto max-w "
+                        className="btn btn-neutral mt-4 mx-auto max-w "
                         disabled={loading}
                       >
                         Upload and Analyze
@@ -239,7 +329,9 @@ const App = () => {
                   )}
                   {analysisResult && (
                     <div className="mt-4 max-h-96 overflow-auto rounded-lg bg-gray-50 p-4 text-left">
-                      <pre>{JSON.stringify(analysisResult, null, 2)}</pre>
+                      <pre className="text-xs leading-relaxed">
+                        {JSON.stringify(analysisResult, null, 2)}
+                      </pre>
                     </div>
                   )}
                 </div>
@@ -276,20 +368,171 @@ const App = () => {
                   ))}
                 </dl>
               </div>
-              <label className="form-control">
-                <div className="label mt-4">
-                  <span className="label-text text-lg font-medium">
-                    Response Data Example
-                  </span>
-                  <span className="label-text-alt"></span>
+              <div className="justify-self-center grid grid-flow-row auto-rows-max">
+                {/*CARD ONE*/}
+                <div className=" max-w-md bg-white border border-gray-200 rounded-lg shadow dark:bg-gray-800 dark:border-gray-700 my-3">
+                  <a
+                    href="https://www.darkreading.com/application-security/google-chrome-store-review-process-data-stealer"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <img
+                      className="rounded-t-lg"
+                      src="/docs/images/blog/image-1.jpg"
+                      alt=""
+                    />
+                  </a>
+                  <div className="p-5">
+                    <a
+                      href="https://www.darkreading.com/application-security/google-chrome-store-review-process-data-stealer"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <h5 className="mb-2 text-2xl font-bold tracking-tight text-gray-900 dark:text-white">
+                        Google's Souped-up Chrome Store Review Process Foiled by
+                        Data-Stealer
+                      </h5>
+                    </a>
+                    <p className="mb-3 font-normal text-gray-700 dark:text-gray-400">
+                      {`"Extensions Have Too Much Access to Web Functions"`}
+                    </p>
+                    <a
+                      href="https://www.darkreading.com/application-security/google-chrome-store-review-process-data-stealer"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center px-3 py-2 text-sm font-medium text-center text-white bg-blue-700 rounded-lg hover:bg-blue-800 focus:ring-4 focus:outline-none focus:ring-blue-300 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
+                    >
+                      Read more
+                      <svg
+                        className="rtl:rotate-180 w-3.5 h-3.5 ms-2"
+                        aria-hidden="true"
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 14 10"
+                      >
+                        <path
+                          stroke="currentColor"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2"
+                          d="M1 5h12m0 0L9 1m4 4L9 9"
+                        />
+                      </svg>
+                    </a>
+                  </div>
                 </div>
-                <textarea
-                  className="textarea textarea-bordered h-full w-full resize-none overflow-auto"
-                  placeholder={JSON.stringify(placeholder, null, 2)}
-                  style={{ minHeight: "600px" }} // Increased minHeight
-                ></textarea>
-                <div className="label"></div>
-              </label>
+                {/* CARD ONE*/}
+                {/*CARD TWO*/}
+                <div className=" max-w-md bg-white border border-gray-200 rounded-lg shadow dark:bg-gray-800 dark:border-gray-700 my-3">
+                  <a
+                    href="https://cointelegraph.com/news/22-more-crypto-stealing-google-chrome-extensions-discovered"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <img
+                      className="rounded-t-lg"
+                      src="/docs/images/blog/image-1.jpg"
+                      alt=""
+                    />
+                  </a>
+                  <div className="p-5">
+                    <a
+                      href="https://cointelegraph.com/news/22-more-crypto-stealing-google-chrome-extensions-discovered"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      {" "}
+                      <h5 className="mb-2 text-2xl font-bold tracking-tight text-gray-900 dark:text-white">
+                        22 More Crypto-Stealing Google Chrome Extensions
+                        Discovered
+                      </h5>
+                    </a>
+                    <p className="mb-3 font-normal text-gray-700 dark:text-gray-400">
+                      "Google Chrome extensions are often used for phishing"
+                    </p>
+                    <a
+                      href="https://cointelegraph.com/news/22-more-crypto-stealing-google-chrome-extensions-discovered"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center px-3 py-2 text-sm font-medium text-center text-white bg-blue-700 rounded-lg hover:bg-blue-800 focus:ring-4 focus:outline-none focus:ring-blue-300 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
+                    >
+                      Read more
+                      <svg
+                        className="rtl:rotate-180 w-3.5 h-3.5 ms-2"
+                        aria-hidden="true"
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 14 10"
+                      >
+                        <path
+                          stroke="currentColor"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2"
+                          d="M1 5h12m0 0L9 1m4 4L9 9"
+                        />
+                      </svg>
+                    </a>
+                  </div>
+                </div>
+                {/* CARD ONE*/}
+                {/*CARD ONE*/}
+                <div className=" max-w-md bg-white border border-gray-200 rounded-lg shadow dark:bg-gray-800 dark:border-gray-700 my-3">
+                  <a
+                    href="https://www.securityweek.com/password-stealing-chrome-extension-demonstrates-new-vulnerabilities/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <img
+                      className="rounded-t-lg"
+                      src="/docs/images/blog/image-1.jpg"
+                      alt=""
+                    />
+                  </a>
+                  <div className="p-5">
+                    <a
+                      href="https://www.securityweek.com/password-stealing-chrome-extension-demonstrates-new-vulnerabilities/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <h5 className="mb-2 text-2xl font-bold tracking-tight text-gray-900 dark:text-white">
+                        Password-Stealing Chrome Extension Demonstrates New
+                        Vulnerabilities
+                      </h5>
+                    </a>
+                    <p className="mb-3 font-normal text-gray-700 dark:text-gray-400">
+                      (12.5% of the total) “have the necessary permissions to
+                      extract sensitive information on all web pages.
+                    </p>
+                    <a
+                      href="https://www.securityweek.com/password-stealing-chrome-extension-demonstrates-new-vulnerabilities/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center px-3 py-2 text-sm font-medium text-center text-white bg-blue-700 rounded-lg hover:bg-blue-800 focus:ring-4 focus:outline-none focus:ring-blue-300 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
+                    >
+                      Read more
+                      <svg
+                        className="rtl:rotate-180 w-3.5 h-3.5 ms-2"
+                        aria-hidden="true"
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 14 10"
+                      >
+                        <path
+                          stroke="currentColor"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2"
+                          d="M1 5h12m0 0L9 1m4 4L9 9"
+                        />
+                      </svg>
+                    </a>
+                  </div>
+                </div>
+                {/* CARD ONE*/}
+              </div>
+
+              {/*HERE*/}
             </div>
           </div>
         </section>

@@ -114,7 +114,8 @@ router.post("/", upload.single("extensionFile"), async (req, res, next) => {
     const dataHandlingDetails = analyzeDataHandling(fileContents)
 
     const retireJsResults = await analyzeJSLibraries(tempPath)
-    const jsLibrariesAnalysis = calculateJSLibrariesScore(retireJsResults)
+    const { score: jsLibrariesScore, jsLibrariesDetails } =
+      calculateJSLibrariesScore(retireJsResults)
     const eslintResults = await runESLintOnDirectory(tempPath)
 
     // Calculate CSP and Permissions scores
@@ -122,7 +123,7 @@ router.post("/", upload.single("extensionFile"), async (req, res, next) => {
     const permissionsAnalysis = analyzePermissions(manifest)
 
     const totalRiskScore =
-      cspAnalysis.score + permissionsAnalysis.score + jsLibrariesAnalysis.score
+      cspAnalysis.score + permissionsAnalysis.score + jsLibrariesScore
 
     const result = {
       name: manifest.name || "No name specified",
@@ -132,13 +133,13 @@ router.post("/", upload.single("extensionFile"), async (req, res, next) => {
       breakdownRiskScore: {
         content_security_policy: cspAnalysis.score,
         permissions: permissionsAnalysis.score,
-        jsLibraries: jsLibrariesAnalysis.score,
+        jsLibrariesScore,
         chromeAPIUsage: Object.keys(chromeAPIUsageDetails).length,
         eslintIssues_notScored: eslintResults.totalIssues,
       },
       details: {
         manifestAnalysis,
-        jsLibrariesDetails: jsLibrariesAnalysis.details,
+        jsLibrariesDetails,
         chromeAPIUsage: chromeAPIUsageDetails,
         dataHandling: dataHandlingDetails,
         eslintDetails: eslintResults,
@@ -450,6 +451,7 @@ function calculateJSLibrariesScore(retireJsResults) {
       })
     })
   })
+  console.log(jsLibrariesDetails)
 
   return { score, jsLibrariesDetails }
 }
