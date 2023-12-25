@@ -1,7 +1,7 @@
 const express = require("express")
 const cors = require("cors")
 const uploadRoutes = require("./routes/upload")
-const convertAndUpload = require("./routes/convert-and-upload")
+const link = require("./routes/link")
 const rateLimit = require("express-rate-limit")
 
 const limiter = rateLimit({
@@ -19,7 +19,7 @@ app.use(express.static("dist"))
 app.use(limiter)
 
 app.use("/upload", uploadRoutes)
-app.use("/convert-and-upload", convertAndUpload)
+app.use("/link", link)
 
 // Error handling middleware
 app.use((err, req, res, next) => {
