@@ -191,7 +191,15 @@ const App = () => {
                   Innovating Extension Security - Comprehensive, Automated
                   Analysis for Enhanced Digital Trust.
                 </p>
-                <button className="btn btn-neutral">Get Started</button>
+                <a
+                  href="mailto:wilsonwu97@outlook.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <button className="btn bg-sky-500 text-neutral-200 text-lg rounded-none hover:bg-sky-600 px-4">
+                    Contact Me
+                  </button>
+                </a>
               </div>
             </div>
             <div className="w-full px-4 lg:w-7/12 lg:px-8 xl:px-12">
@@ -214,7 +222,7 @@ const App = () => {
                         />
                         <button
                           type="submit"
-                          className="btn btn-neutral absolute right-0 top-0 rounded-l-none"
+                          className="btn bg-sky-500 text-slate-200 text-lg absolute right-0 top-0 rounded-l-none"
                         >
                           Search
                         </button>
@@ -236,18 +244,18 @@ const App = () => {
                     <div className="flex flex-wrap justify-center gap-2 mt-4">
                       <button
                         type="button"
-                        className="btn btn-neutral w-full sm:w-auto px-4"
+                        className="btn btn-outline text-md rounded-none  w-full sm:w-auto px-4"
                         onClick={() =>
                           handleButtonClick(
-                            "https://chromewebstore.google.com/detail/coffeelings/hcbddpppkcnfjifbcfnhmelpemdoepkk"
+                            "https://chromewebstore.google.com/detail/remindoro/njmniggbfobokemdjebnhmbldimkofkc"
                           )
                         }
                       >
-                        Coffeelings
+                        Remindoro
                       </button>
                       <button
                         type="button"
-                        className="btn btn-neutral w-full sm:w-auto px-4"
+                        className="btn btn-outline text-md rounded-none w-full sm:w-auto px-4"
                         onClick={() =>
                           handleButtonClick("ohdfhnkelpnfiamkjnfbbafnhleohmma")
                         }
@@ -256,7 +264,7 @@ const App = () => {
                       </button>
                       <button
                         type="button"
-                        className="btn btn-neutral w-full sm:w-auto px-4"
+                        className="btn btn-outline text-md rounded-none w-full sm:w-auto px-4"
                         onClick={() =>
                           handleButtonClick(
                             "https://chromewebstore.google.com/detail/netflix-party-is-now-tele/oocalimimngaihdkbihfgmpkcpnmlaoa"
@@ -272,6 +280,7 @@ const App = () => {
             </div>
           </div>
         </section>
+        {/* ------------------------------------------------------------------------------------------------------- */}
         <section className="container mx-auto px-4 pt-32 lg:px-44">
           <div className="mx-auto flex max-w-7xl flex-wrap justify-center">
             <div className="mb-16 mt-5 w-full px-4 lg:w-5/12 lg:px-8 xl:px-12">
@@ -288,12 +297,14 @@ const App = () => {
                   target="_blank"
                   rel="noopener noreferrer"
                 >
-                  <button className="btn btn-neutral">View Source Code</button>
+                  <button className="btn bg-sky-500 text-neutral-200 text-lg rounded-none hover:bg-sky-600 px-4">
+                    View Source Code
+                  </button>
                 </a>{" "}
               </div>
             </div>
-            <div className="w-full px-4 lg:w-7/12 lg:px-8 xl:px-12">
-              <div className="card w-full bg-base-100 shadow-xl">
+            <div className="w-full px-4 py-6 lg:w-7/12 lg:px-8 xl:px-12">
+              <div className="card w-full bg-slate-200/60 shadow-xl">
                 <div className="card-body">
                   <form onSubmit={handleSubmit}>
                     <div className="form-control pt-6">
@@ -357,20 +368,171 @@ const App = () => {
                   ))}
                 </dl>
               </div>
-              <label className="form-control">
-                <div className="label mt-4">
-                  <span className="label-text text-lg font-medium">
-                    Response Data Example
-                  </span>
-                  <span className="label-text-alt"></span>
+              <div className="justify-self-center grid grid-flow-row auto-rows-max">
+                {/*CARD ONE*/}
+                <div className=" max-w-md bg-white border border-gray-200 rounded-lg shadow dark:bg-gray-800 dark:border-gray-700 my-3">
+                  <a
+                    href="https://www.darkreading.com/application-security/google-chrome-store-review-process-data-stealer"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <img
+                      className="rounded-t-lg"
+                      src="/docs/images/blog/image-1.jpg"
+                      alt=""
+                    />
+                  </a>
+                  <div className="p-5">
+                    <a
+                      href="https://www.darkreading.com/application-security/google-chrome-store-review-process-data-stealer"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <h5 className="mb-2 text-2xl font-bold tracking-tight text-gray-900 dark:text-white">
+                        Google's Souped-up Chrome Store Review Process Foiled by
+                        Data-Stealer
+                      </h5>
+                    </a>
+                    <p className="mb-3 font-normal text-gray-700 dark:text-gray-400">
+                      {`"Extensions Have Too Much Access to Web Functions"`}
+                    </p>
+                    <a
+                      href="https://www.darkreading.com/application-security/google-chrome-store-review-process-data-stealer"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center px-3 py-2 text-sm font-medium text-center text-white bg-blue-700 rounded-lg hover:bg-blue-800 focus:ring-4 focus:outline-none focus:ring-blue-300 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
+                    >
+                      Read more
+                      <svg
+                        className="rtl:rotate-180 w-3.5 h-3.5 ms-2"
+                        aria-hidden="true"
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 14 10"
+                      >
+                        <path
+                          stroke="currentColor"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2"
+                          d="M1 5h12m0 0L9 1m4 4L9 9"
+                        />
+                      </svg>
+                    </a>
+                  </div>
                 </div>
-                <textarea
-                  className="textarea textarea-bordered h-full w-full resize-none overflow-auto"
-                  placeholder={JSON.stringify(placeholder, null, 2)}
-                  style={{ minHeight: "600px" }} // Increased minHeight
-                ></textarea>
-                <div className="label"></div>
-              </label>
+                {/* CARD ONE*/}
+                {/*CARD TWO*/}
+                <div className=" max-w-md bg-white border border-gray-200 rounded-lg shadow dark:bg-gray-800 dark:border-gray-700 my-3">
+                  <a
+                    href="https://cointelegraph.com/news/22-more-crypto-stealing-google-chrome-extensions-discovered"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <img
+                      className="rounded-t-lg"
+                      src="/docs/images/blog/image-1.jpg"
+                      alt=""
+                    />
+                  </a>
+                  <div className="p-5">
+                    <a
+                      href="https://cointelegraph.com/news/22-more-crypto-stealing-google-chrome-extensions-discovered"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      {" "}
+                      <h5 className="mb-2 text-2xl font-bold tracking-tight text-gray-900 dark:text-white">
+                        22 More Crypto-Stealing Google Chrome Extensions
+                        Discovered
+                      </h5>
+                    </a>
+                    <p className="mb-3 font-normal text-gray-700 dark:text-gray-400">
+                      "Google Chrome extensions are often used for phishing"
+                    </p>
+                    <a
+                      href="https://cointelegraph.com/news/22-more-crypto-stealing-google-chrome-extensions-discovered"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center px-3 py-2 text-sm font-medium text-center text-white bg-blue-700 rounded-lg hover:bg-blue-800 focus:ring-4 focus:outline-none focus:ring-blue-300 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
+                    >
+                      Read more
+                      <svg
+                        className="rtl:rotate-180 w-3.5 h-3.5 ms-2"
+                        aria-hidden="true"
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 14 10"
+                      >
+                        <path
+                          stroke="currentColor"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2"
+                          d="M1 5h12m0 0L9 1m4 4L9 9"
+                        />
+                      </svg>
+                    </a>
+                  </div>
+                </div>
+                {/* CARD ONE*/}
+                {/*CARD ONE*/}
+                <div className=" max-w-md bg-white border border-gray-200 rounded-lg shadow dark:bg-gray-800 dark:border-gray-700 my-3">
+                  <a
+                    href="https://www.securityweek.com/password-stealing-chrome-extension-demonstrates-new-vulnerabilities/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <img
+                      className="rounded-t-lg"
+                      src="/docs/images/blog/image-1.jpg"
+                      alt=""
+                    />
+                  </a>
+                  <div className="p-5">
+                    <a
+                      href="https://www.securityweek.com/password-stealing-chrome-extension-demonstrates-new-vulnerabilities/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <h5 className="mb-2 text-2xl font-bold tracking-tight text-gray-900 dark:text-white">
+                        Password-Stealing Chrome Extension Demonstrates New
+                        Vulnerabilities
+                      </h5>
+                    </a>
+                    <p className="mb-3 font-normal text-gray-700 dark:text-gray-400">
+                      (12.5% of the total) “have the necessary permissions to
+                      extract sensitive information on all web pages.
+                    </p>
+                    <a
+                      href="https://www.securityweek.com/password-stealing-chrome-extension-demonstrates-new-vulnerabilities/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center px-3 py-2 text-sm font-medium text-center text-white bg-blue-700 rounded-lg hover:bg-blue-800 focus:ring-4 focus:outline-none focus:ring-blue-300 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
+                    >
+                      Read more
+                      <svg
+                        className="rtl:rotate-180 w-3.5 h-3.5 ms-2"
+                        aria-hidden="true"
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 14 10"
+                      >
+                        <path
+                          stroke="currentColor"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2"
+                          d="M1 5h12m0 0L9 1m4 4L9 9"
+                        />
+                      </svg>
+                    </a>
+                  </div>
+                </div>
+                {/* CARD ONE*/}
+              </div>
+
+              {/*HERE*/}
             </div>
           </div>
         </section>
