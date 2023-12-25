@@ -334,8 +334,8 @@ function analyzeCSP(manifest) {
 function analyzeManifest(manifest) {
   let analysisResult = {
     manifestVersion: manifest.manifest_version || "Unknown",
-    cspDetails: analyzeCSP(manifest).details, // Analyze CSP and get details
-    permissionsDetails: analyzePermissions(manifest).details, // Analyze permissions and get details
+    cspDetails: analyzeCSP(manifest).details,
+    permissionsDetails: analyzePermissions(manifest).details,
     backgroundScripts: [],
     contentScriptsDomains: [],
     webAccessibleResources: [],
@@ -345,7 +345,6 @@ function analyzeManifest(manifest) {
     specificOverrides: [],
     developerInfo: {},
     chromeOsKeys: [],
-    securityRisks: [],
   }
 
   // Background Scripts and Service Workers
