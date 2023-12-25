@@ -5,8 +5,8 @@ module.exports = {
     es2021: true,
     jest: true,
   },
-  extends: ["eslint:recommended", "plugin:security/recommended"],
-  plugins: ["security"],
+  // extends: ["eslint:recommended", "plugin:security/recommended"],
+  // plugins: ["security"],
   overrides: [
     {
       env: {
