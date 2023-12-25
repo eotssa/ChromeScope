@@ -85,7 +85,7 @@ function getExtensionIdFromLink(urlOrId) {
 }
 
 router.post("/", upload.single("extensionFile"), async (req, res, next) => {
-  let tempPath = createTempDirectory() // unsure if it's safe to use this variable outside of the try block - required for finally block
+  let tempPath = createTempDirectory()
 
   try {
     const extensionUrl = req.body.extensionUrl
@@ -98,76 +98,54 @@ router.post("/", upload.single("extensionFile"), async (req, res, next) => {
     const downloadLink = buildDownloadLink(extensionId)
     const response = await axios.get(downloadLink, {
       responseType: "arraybuffer",
-      maxContentLength: 50 * 1024 * 1024, // Limit set to 50 MB
+      maxContentLength: 50 * 1024 * 1024,
     })
     const crxBuffer = Buffer.from(response.data)
 
     const zipBuffer = parseCRX(crxBuffer)
-
-    // Use admZip to extract the ZIP buffer
     const zip = new admZip(zipBuffer)
     zip.extractAllTo(tempPath, true)
 
-    // Read the manifest.json file
     const manifest = JSON.parse(zip.readAsText("manifest.json"))
-
-    // Extract Name, Version, and Description from the manifest
-    const manifestName = manifest.name || "No name specified"
-    const extensionVersion = manifest.version || "No version specified"
-    const manifestDescription =
-      manifest.description || "No description specified"
-
-    // Analyze metadata, CSP, and permissions
-    const metadataScore = analyzeMetadata(manifest)
-    const { score: cspScore, cspDetails } = analyzeCSP(manifest)
-    const { score: permissionsScore, permissionsDetails } =
-      analyzePermissions(manifest)
-
-    // Complete manifest analysis
     const manifestAnalysis = analyzeManifest(manifest)
 
-    // Read all .js files in the extracted directory
     const fileContents = await readFiles(tempPath)
-
-    // Perform Chrome API Usage and Data Handling analysis
     const chromeAPIUsageDetails = analyzeChromeAPIUsage(fileContents)
     const dataHandlingDetails = analyzeDataHandling(fileContents)
 
-    // Analyze JavaScript libraries and ESLint
     const retireJsResults = await analyzeJSLibraries(tempPath)
-    const { score: jsLibrariesScore, jsLibrariesDetails } =
-      calculateJSLibrariesScore(retireJsResults)
+    const jsLibrariesAnalysis = calculateJSLibrariesScore(retireJsResults)
     const eslintResults = await runESLintOnDirectory(tempPath)
 
-    // Compile the results into a single object
+    // Calculate CSP and Permissions scores
+    const cspAnalysis = analyzeCSP(manifest)
+    const permissionsAnalysis = analyzePermissions(manifest)
+
+    const totalRiskScore =
+      cspAnalysis.score + permissionsAnalysis.score + jsLibrariesAnalysis.score
+
     const result = {
-      name: manifestName,
-      version: extensionVersion,
-      description: manifestDescription,
-      totalRiskScore:
-        metadataScore + cspScore + permissionsScore + jsLibrariesScore,
+      name: manifest.name || "No name specified",
+      version: manifest.version || "No version specified",
+      description: manifest.description || "No description specified",
+      totalRiskScore: totalRiskScore || 0,
       breakdownRiskScore: {
-        metadataScore,
-        cspScore,
-        permissionsScore,
-        jsLibrariesScore,
+        content_security_policy: cspAnalysis.score,
+        permissions: permissionsAnalysis.score,
+        jsLibraries: jsLibrariesAnalysis.score,
         chromeAPIUsage: Object.keys(chromeAPIUsageDetails).length,
-        eslintIssues: eslintResults.totalIssues,
+        eslintIssues_notScored: eslintResults.totalIssues,
       },
       details: {
         manifestAnalysis,
-        cspDetails,
-        permissionsDetails,
-        jsLibrariesDetails,
+        jsLibrariesDetails: jsLibrariesAnalysis.details,
         chromeAPIUsage: chromeAPIUsageDetails,
         dataHandling: dataHandlingDetails,
         eslintDetails: eslintResults,
       },
     }
 
-    //console.log('Analysis Results:', JSON.stringify(result, null, 2));
     res.json(result)
-    deleteTempDirectory(tempPath)
   } catch (err) {
     console.error(err)
     next(err)
@@ -292,19 +270,19 @@ function analyzeChromeAPIUsage(fileContents) {
   return chromeAPIUsage
 }
 
-function analyzeMetadata(manifest) {
-  let score = 0
+// function analyzeMetadata(manifest) {
+//   let score = 0
 
-  if (!manifest.author) score += 1
+//   if (!manifest.author) score += 1
 
-  if (!manifest.developer || !manifest.developer.email) score += 1
+//   if (!manifest.developer || !manifest.developer.email) score += 1
 
-  if (!manifest.privacy_policy) score += 1
+//   if (!manifest.privacy_policy) score += 1
 
-  if (!manifest.homepage_url) score += 1
+//   if (!manifest.homepage_url) score += 1
 
-  return score
-}
+//   return score
+// }
 
 // Recursive function to find CSP in the manifest object
 function findCSP(obj) {
@@ -333,7 +311,7 @@ function analyzeCSP(manifest) {
 
   if (!csp) {
     score += 25 // No CSP present
-    cspDetails["noCSP"] = "NO CSP DEFINED"
+    cspDetails["warning:"] = "NO CSP DEFINED"
   } else {
     const policies = csp.split(";").filter(Boolean)
     policies.forEach((policy) => {
@@ -350,12 +328,14 @@ function analyzeCSP(manifest) {
     })
   }
 
-  return { score, cspDetails }
+  return { score, details: cspDetails }
 }
 
 function analyzeManifest(manifest) {
   let analysisResult = {
-    cspAnalysis: {},
+    manifestVersion: manifest.manifest_version || "Unknown",
+    cspDetails: analyzeCSP(manifest).details, // Analyze CSP and get details
+    permissionsDetails: analyzePermissions(manifest).details, // Analyze permissions and get details
     backgroundScripts: [],
     contentScriptsDomains: [],
     webAccessibleResources: [],
@@ -365,15 +345,7 @@ function analyzeManifest(manifest) {
     specificOverrides: [],
     developerInfo: {},
     chromeOsKeys: [],
-    versionInfo: {},
     securityRisks: [],
-  }
-
-  // CSP Analysis
-  if (manifest.content_security_policy) {
-    analysisResult.cspAnalysis = analyzeCSP(manifest.content_security_policy)
-  } else {
-    analysisResult.cspAnalysis = { warning: "No CSP defined." }
   }
 
   // Background Scripts and Service Workers
@@ -431,12 +403,6 @@ function analyzeManifest(manifest) {
       analysisResult.chromeOsKeys.push(key)
     }
   })
-
-  // Version Information
-  analysisResult.versionInfo = {
-    version: manifest.version,
-    minChromeVersion: manifest.minimum_chrome_version || "Not specified",
-  }
 
   // Additional Security Checks
   // Placeholder for additional security-related checks that you might add
@@ -624,7 +590,7 @@ function analyzePermissions(manifest) {
     }
   })
 
-  return { score, permissionsDetails }
+  return { score, details: permissionsDetails }
 }
 
 module.exports = router
