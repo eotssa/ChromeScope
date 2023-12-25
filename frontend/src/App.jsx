@@ -149,13 +149,57 @@ const App = () => {
   const [loading, setLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState(null)
 
-  const handleFileChange = (e) => {
-    const selectedFile = e.target.files[0]
-    if (selectedFile) {
-      setFile(selectedFile)
+  const [searchInput, setSearchInput] = useState("")
+  const [jsonData, setJsonData] = useState("")
+
+  // Search Component
+  const handleSearch = async (e) => {
+    e.preventDefault()
+    if (!searchInput.trim()) {
+      setErrorMessage("Please enter a valid extension URL.")
+      return
+    }
+
+    try {
+      setLoading(true)
+      const response = await axios.post("http://localhost:3001/link", {
+        extensionUrl: searchInput.trim(),
+      })
+
+      setJsonData(response.data)
+      setErrorMessage(null)
+    } catch (error) {
+      console.error("Error in search:", error)
+      setErrorMessage("Error fetching data. Please try again.")
+    } finally {
+      setLoading(false)
     }
   }
 
+  // Search Component
+  const handleFileChange = async (e) => {
+    const selectedFile = e.target.files[0]
+    if (selectedFile) {
+      setFile(selectedFile) // Assuming you have a setter for setting file state
+
+      const formData = new FormData()
+      formData.append("extensionFile", selectedFile)
+
+      try {
+        const response = await axios.post("/your-upload-route", formData, {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+        })
+
+        setJsonData(response.data) // Assuming you have a setter for setting JSON data state
+      } catch (error) {
+        console.error("Error in file upload:", error)
+      }
+    }
+  }
+
+  // Upload Component
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!file) {
@@ -193,6 +237,52 @@ const App = () => {
   return (
     <>
       <Layout>
+        <section className="container mx-auto px-4 pt-32 lg:px-44">
+          <div className="mx-auto flex max-w-7xl flex-wrap justify-center">
+            <div className="mb-16 mt-12 w-full px-4 lg:w-5/12 lg:px-8 xl:px-12">
+              <div className="text-left">
+                <h1 className="text-5xl font-bold">
+                  Automate Extension Risk Assessment
+                </h1>
+                <p className="py-6 text-lg font-medium">
+                  Innovating Extension Security - Comprehensive, Automated
+                  Analysis for Enhanced Digital Trust.
+                </p>
+                <button className="btn btn-primary">Get Started</button>
+              </div>
+            </div>
+            <div className="w-full px-4 lg:w-7/12 lg:px-8 xl:px-12">
+              <div className="card w-full bg-base-100 shadow-xl">
+                <div className="card-body">
+                  <form onSubmit={handleSearch}>
+                    <div className="form-control">
+                      <div className="relative">
+                        <input
+                          type="text"
+                          placeholder="Search"
+                          className="input-neutral input input-bordered w-full pr-16"
+                          value={searchInput}
+                          onChange={(e) => setSearchInput(e.target.value)}
+                        />
+                        <button
+                          type="submit"
+                          className="btn btn-neutral absolute right-0 top-0 rounded-l-none"
+                        >
+                          Search
+                        </button>
+                      </div>
+                    </div>
+                  </form>
+                  {jsonData && (
+                    <div className="mt-4 max-h-96 overflow-auto rounded-lg bg-gray-100 p-4 text-left">
+                      <pre>{JSON.stringify(jsonData, null, 2)}</pre>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
         <section className="container mx-auto px-4 pt-32 lg:px-44">
           <div className="mx-auto flex max-w-7xl flex-wrap justify-center">
             <div className="mb-16 mt-5 w-full px-4 lg:w-5/12 lg:px-8 xl:px-12">
