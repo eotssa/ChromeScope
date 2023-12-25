@@ -28,7 +28,7 @@ function buildDownloadLink(extensionId) {
 
 function parseCRX(buffer) {
   const magic = buffer.readUInt32LE(0)
-  console.log(`Magic number: 0x${magic.toString(16)}`) // Should be 0x43723234 for 'Cr24'
+  //console.log(`Magic number: 0x${magic.toString(16)}`) // Should be 0x43723234 for 'Cr24'
 
   if (magic !== 0x34327243) {
     // 0x43723234 DEF NOT THIS? // SHOULD BE 0x34327243 -- https://searchfox.org/mozilla-central/source/modules/libjar/nsZipArchive.cpp
@@ -36,7 +36,7 @@ function parseCRX(buffer) {
   }
 
   const version = buffer.readUInt32LE(4)
-  console.log(`CRX version: ${version}`)
+  //console.log(`CRX version: ${version}`)
   let zipStart
 
   if (version === 2) {
@@ -85,7 +85,7 @@ function getExtensionIdFromLink(urlOrId) {
 }
 
 router.post("/", upload.single("extensionFile"), async (req, res, next) => {
-  let tempPath = createTempDirectory() // unsure if it's safe to use this variable outside of the try block - required for finally block
+  let tempPath = createTempDirectory()
 
   try {
     const extensionUrl = req.body.extensionUrl
@@ -98,75 +98,54 @@ router.post("/", upload.single("extensionFile"), async (req, res, next) => {
     const downloadLink = buildDownloadLink(extensionId)
     const response = await axios.get(downloadLink, {
       responseType: "arraybuffer",
-      maxContentLength: 50 * 1024 * 1024, // Limit set to 50 MB
+      maxContentLength: 50 * 1024 * 1024,
     })
     const crxBuffer = Buffer.from(response.data)
 
     const zipBuffer = parseCRX(crxBuffer)
-
-    // Use admZip to extract the ZIP buffer
     const zip = new admZip(zipBuffer)
     zip.extractAllTo(tempPath, true)
 
-    // Read the manifest.json file
     const manifest = JSON.parse(zip.readAsText("manifest.json"))
+    const manifestAnalysis = analyzeManifest(manifest)
 
-    // Extract Name, Version, and Description from the manifest
-    const manifestName = manifest.name || "No name specified"
-    const manifestVersion = manifest.version || "No version specified"
-    const manifestDescription =
-      manifest.description || "No description specified"
-
-    // Analyze metadata, CSP, and permissions
-    const metadataScore = analyzeMetadata(manifest)
-    const { score: cspScore, cspDetails } = analyzeCSP(manifest)
-    const { score: permissionsScore, permissionsDetails } =
-      analyzePermissions(manifest)
-
-    // Read all .js files in the extracted directory
     const fileContents = await readFiles(tempPath)
-
-    // Perform Chrome API Usage and Data Handling analysis
     const chromeAPIUsageDetails = analyzeChromeAPIUsage(fileContents)
     const dataHandlingDetails = analyzeDataHandling(fileContents)
 
-    // Analyze JavaScript libraries and ESLint
     const retireJsResults = await analyzeJSLibraries(tempPath)
-    const { score: jsLibrariesScore, jsLibrariesDetails } =
-      calculateJSLibrariesScore(retireJsResults)
+    const jsLibrariesAnalysis = calculateJSLibrariesScore(retireJsResults)
     const eslintResults = await runESLintOnDirectory(tempPath)
 
-    // Compile the results into a single object
+    // Calculate CSP and Permissions scores
+    const cspAnalysis = analyzeCSP(manifest)
+    const permissionsAnalysis = analyzePermissions(manifest)
+
+    const totalRiskScore =
+      cspAnalysis.score + permissionsAnalysis.score + jsLibrariesAnalysis.score
+
     const result = {
-      manifestDetails: {
-        name: manifestName,
-        version: manifestVersion,
-        description: manifestDescription,
-      },
-      totalRiskScore:
-        metadataScore + cspScore + permissionsScore + jsLibrariesScore,
-      breakdown: {
-        metadataScore,
-        cspScore,
-        permissionsScore,
-        jsLibrariesScore,
+      name: manifest.name || "No name specified",
+      version: manifest.version || "No version specified",
+      description: manifest.description || "No description specified",
+      totalRiskScore: totalRiskScore || 0,
+      breakdownRiskScore: {
+        content_security_policy: cspAnalysis.score,
+        permissions: permissionsAnalysis.score,
+        jsLibraries: jsLibrariesAnalysis.score,
         chromeAPIUsage: Object.keys(chromeAPIUsageDetails).length,
-        eslintIssues: eslintResults.totalIssues,
+        eslintIssues_notScored: eslintResults.totalIssues,
       },
       details: {
-        metadataDetails: {},
-        cspDetails,
-        permissionsDetails,
-        jsLibrariesDetails,
+        manifestAnalysis,
+        jsLibrariesDetails: jsLibrariesAnalysis.details,
         chromeAPIUsage: chromeAPIUsageDetails,
         dataHandling: dataHandlingDetails,
         eslintDetails: eslintResults,
       },
     }
 
-    //console.log('Analysis Results:', JSON.stringify(result, null, 2));
     res.json(result)
-    deleteTempDirectory(tempPath)
   } catch (err) {
     console.error(err)
     next(err)
@@ -175,19 +154,21 @@ router.post("/", upload.single("extensionFile"), async (req, res, next) => {
   }
 })
 
-async function readFiles(directoryPath) {
+async function readFiles(directoryPath, basePath = directoryPath) {
   let fileContents = {}
 
   const files = fs.readdirSync(directoryPath)
 
   for (const file of files) {
     const fullPath = path.join(directoryPath, file)
+    const relativePath = path.relative(basePath, fullPath) // Get relative path
+
     if (fs.statSync(fullPath).isDirectory()) {
-      const nestedFiles = await readFiles(fullPath)
+      const nestedFiles = await readFiles(fullPath, basePath)
       fileContents = { ...fileContents, ...nestedFiles }
     } else if (path.extname(file) === ".js") {
       const content = fs.readFileSync(fullPath, "utf-8")
-      fileContents[fullPath] = content
+      fileContents[relativePath] = content // Use relative path as key
     }
   }
 
@@ -289,46 +270,19 @@ function analyzeChromeAPIUsage(fileContents) {
   return chromeAPIUsage
 }
 
-function analyzeMetadata(manifest) {
-  let score = 0
+// function analyzeMetadata(manifest) {
+//   let score = 0
 
-  if (!manifest.author) score += 1
+//   if (!manifest.author) score += 1
 
-  if (!manifest.developer || !manifest.developer.email) score += 1
+//   if (!manifest.developer || !manifest.developer.email) score += 1
 
-  if (!manifest.privacy_policy) score += 1
+//   if (!manifest.privacy_policy) score += 1
 
-  if (!manifest.homepage_url) score += 1
+//   if (!manifest.homepage_url) score += 1
 
-  return score
-}
-
-function analyzeCSP(manifest) {
-  let score = 0
-  let cspDetails = {} // Initialize cspDetails
-  const csp = findCSP(manifest)
-
-  if (!csp) {
-    score += 25 // No CSP present
-    cspDetails["noCSP"] = "No CSP present"
-  } else {
-    const policies = csp.split(";").filter(Boolean)
-    policies.forEach((policy) => {
-      const policyParts = policy.split(" ").filter(Boolean)
-      const directive = policyParts.shift() // e.g., 'script-src', 'object-src'
-
-      policyParts.forEach((source) => {
-        if (source !== "'self'") {
-          score += 1 // Increment score for each source excluding 'self'
-          cspDetails[directive] = cspDetails[directive] || []
-          cspDetails[directive].push(source)
-        }
-      })
-    })
-  }
-
-  return { score, cspDetails }
-}
+//   return score
+// }
 
 // Recursive function to find CSP in the manifest object
 function findCSP(obj) {
@@ -348,6 +302,112 @@ function findCSP(obj) {
     }
   }
   return null
+}
+
+function analyzeCSP(manifest) {
+  let score = 0
+  let cspDetails = {} // Initialize cspDetails
+  const csp = findCSP(manifest)
+
+  if (!csp) {
+    score += 25 // No CSP present
+    cspDetails["warning:"] = "NO CSP DEFINED"
+  } else {
+    const policies = csp.split(";").filter(Boolean)
+    policies.forEach((policy) => {
+      const policyParts = policy.split(" ").filter(Boolean)
+      const directive = policyParts.shift() // e.g., 'script-src', 'object-src'
+
+      policyParts.forEach((source) => {
+        if (source !== "'self'") {
+          score += 1 // Increment score for each source excluding 'self'
+          cspDetails[directive] = cspDetails[directive] || []
+          cspDetails[directive].push(source)
+        }
+      })
+    })
+  }
+
+  return { score, details: cspDetails }
+}
+
+function analyzeManifest(manifest) {
+  let analysisResult = {
+    manifestVersion: manifest.manifest_version || "Unknown",
+    cspDetails: analyzeCSP(manifest).details, // Analyze CSP and get details
+    permissionsDetails: analyzePermissions(manifest).details, // Analyze permissions and get details
+    backgroundScripts: [],
+    contentScriptsDomains: [],
+    webAccessibleResources: [],
+    externallyConnectable: [],
+    updateUrl: null,
+    oauth2: false,
+    specificOverrides: [],
+    developerInfo: {},
+    chromeOsKeys: [],
+    securityRisks: [],
+  }
+
+  // Background Scripts and Service Workers
+  if (manifest.background) {
+    analysisResult.backgroundScripts = manifest.background.scripts || []
+    if (manifest.background.service_worker) {
+      analysisResult.backgroundScripts.push(manifest.background.service_worker)
+    }
+  }
+
+  // Content Scripts
+  if (manifest.content_scripts) {
+    manifest.content_scripts.forEach((script) => {
+      analysisResult.contentScriptsDomains =
+        analysisResult.contentScriptsDomains.concat(script.matches)
+    })
+  }
+
+  // Web Accessible Resources
+  if (manifest.web_accessible_resources) {
+    analysisResult.webAccessibleResources = manifest.web_accessible_resources
+  }
+
+  // Externally Connectable
+  if (manifest.externally_connectable) {
+    analysisResult.externallyConnectable =
+      manifest.externally_connectable.matches || []
+  }
+
+  // Update URL
+  if (manifest.update_url) {
+    analysisResult.updateUrl = manifest.update_url
+  }
+
+  // OAuth2 Information
+  if (manifest.oauth2) {
+    analysisResult.oauth2 = true
+  }
+
+  // Chrome Specific Overrides
+  ;["chrome_url_overrides", "chrome_settings_overrides"].forEach((key) => {
+    if (manifest[key]) {
+      analysisResult.specificOverrides.push(key)
+    }
+  })
+
+  // Developer Information
+  if (manifest.author) {
+    analysisResult.developerInfo.author = manifest.author
+  }
+
+  // Chrome OS Specific Keys
+  ;["file_browser_handlers", "input_components"].forEach((key) => {
+    if (manifest[key]) {
+      analysisResult.chromeOsKeys.push(key)
+    }
+  })
+
+  // Additional Security Checks
+  // Placeholder for additional security-related checks that you might add
+
+  return analysisResult
 }
 
 async function analyzeJSLibraries(extensionPath) {
@@ -372,25 +432,24 @@ function calculateJSLibrariesScore(retireJsResults) {
   let score = 0
   let jsLibrariesDetails = {}
 
-  retireJsResults.forEach((fileResult) => {
-    if (fileResult.results && fileResult.results.length > 0) {
-      fileResult.results.forEach((library) => {
-        library.vulnerabilities.forEach((vulnerability, index) => {
-          const vulnKey = `${library.component}-vuln-${index}`
-          score += determineVulnerabilityScore(vulnerability)
+  // Debugging: log the retireJsResults to inspect the structure
+  //console.log("Retire.js Results:", JSON.stringify(retireJsResults, null, 2))
 
-          jsLibrariesDetails[vulnKey] = {
-            component: library.component,
-            severity: vulnerability.severity.toLowerCase(),
-            info: vulnerability.info.join(", "),
-            summary: vulnerability.identifiers.summary,
-            CVE: vulnerability.identifiers.CVE
-              ? vulnerability.identifiers.CVE.join(", ")
-              : "",
-          }
-        })
+  retireJsResults.forEach((fileResult) => {
+    fileResult?.results?.forEach((library) => {
+      library?.vulnerabilities?.forEach((vulnerability, index) => {
+        const vulnKey = `${library.component}-vuln-${index}`
+        score += determineVulnerabilityScore(vulnerability)
+
+        jsLibrariesDetails[vulnKey] = {
+          component: library.component,
+          severity: vulnerability.severity?.toLowerCase(),
+          info: vulnerability.info?.join(", "),
+          summary: vulnerability.identifiers?.summary,
+          CVE: vulnerability.identifiers?.CVE?.join(", ") || "",
+        }
       })
-    }
+    })
   })
 
   return { score, jsLibrariesDetails }
@@ -531,7 +590,7 @@ function analyzePermissions(manifest) {
     }
   })
 
-  return { score, permissionsDetails }
+  return { score, details: permissionsDetails }
 }
 
 module.exports = router
