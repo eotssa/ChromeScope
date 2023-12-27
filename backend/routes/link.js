@@ -31,7 +31,7 @@ function parseCRX(buffer) {
   //console.log(`Magic number: 0x${magic.toString(16)}`) // Should be 0x43723234 for 'Cr24'
 
   if (magic !== 0x34327243) {
-    // 0x43723234 DEF NOT THIS? // SHOULD BE 0x34327243 -- https://searchfox.org/mozilla-central/source/modules/libjar/nsZipArchive.cpp
+    // https://searchfox.org/mozilla-central/source/modules/libjar/nsZipArchive.cpp
     throw new Error("Not a valid CRX file")
   }
 
@@ -81,32 +81,57 @@ function getExtensionIdFromLink(urlOrId) {
     return urlOrId // Return the ID directly
   }
 
+  throw new Error("Invalid or disallowed URL")
   return null // Return null if neither pattern matches or host is not allowed
 }
 
-router.post("/", upload.single("extensionFile"), async (req, res, next) => {
+router.post("/", upload.single("extensionUrl"), async (req, res, next) => {
   let tempPath = createTempDirectory()
 
   try {
     const extensionUrl = req.body.extensionUrl
-    const extensionId = getExtensionIdFromLink(extensionUrl)
+    if (!extensionUrl) {
+      throw new Error("Extension URL is required")
+    }
 
+    const extensionId = getExtensionIdFromLink(extensionUrl)
     if (!extensionId) {
-      return res.status(400).send("Invalid or disallowed extension URL")
+      throw new Error("Invalid or disallowed extension URL")
     }
 
     const downloadLink = buildDownloadLink(extensionId)
-    const response = await axios.get(downloadLink, {
-      responseType: "arraybuffer",
-      maxContentLength: 50 * 1024 * 1024,
-    })
-    const crxBuffer = Buffer.from(response.data)
+    let crxBuffer
+    try {
+      const response = await axios.get(downloadLink, {
+        responseType: "arraybuffer",
+        maxContentLength: 50 * 1024 * 1024,
+      })
+      crxBuffer = Buffer.from(response.data)
+    } catch (axiosError) {
+      // Pass the error to the next middleware
+      next(axiosError)
+      return
+    }
 
-    const zipBuffer = parseCRX(crxBuffer)
+    let zipBuffer
+    try {
+      zipBuffer = parseCRX(crxBuffer)
+    } catch (crxError) {
+      next(crxError)
+      return
+    }
+
     const zip = new admZip(zipBuffer)
     zip.extractAllTo(tempPath, true)
 
-    const manifest = JSON.parse(zip.readAsText("manifest.json"))
+    let manifest
+    try {
+      manifest = JSON.parse(zip.readAsText("manifest.json"))
+    } catch (jsonError) {
+      next(new Error("Manifest JSON parsing failed"))
+      return
+    }
+
     const manifestAnalysis = analyzeManifest(manifest)
 
     const fileContents = await readFiles(tempPath)
@@ -158,22 +183,26 @@ router.post("/", upload.single("extensionFile"), async (req, res, next) => {
 async function readFiles(directoryPath, basePath = directoryPath) {
   let fileContents = {}
 
-  const files = fs.readdirSync(directoryPath)
+  try {
+    const files = fs.readdirSync(directoryPath)
 
-  for (const file of files) {
-    const fullPath = path.join(directoryPath, file)
-    const relativePath = path.relative(basePath, fullPath) // Get relative path
+    for (const file of files) {
+      const fullPath = path.join(directoryPath, file)
+      const relativePath = path.relative(basePath, fullPath) // Get relative path
 
-    if (fs.statSync(fullPath).isDirectory()) {
-      const nestedFiles = await readFiles(fullPath, basePath)
-      fileContents = { ...fileContents, ...nestedFiles }
-    } else if (path.extname(file) === ".js") {
-      const content = fs.readFileSync(fullPath, "utf-8")
-      fileContents[relativePath] = content // Use relative path as key
+      if (fs.statSync(fullPath).isDirectory()) {
+        const nestedFiles = await readFiles(fullPath, basePath)
+        fileContents = { ...fileContents, ...nestedFiles }
+      } else if (path.extname(file) === ".js") {
+        const content = fs.readFileSync(fullPath, "utf-8")
+        fileContents[relativePath] = content // Use relative path as key
+      }
     }
-  }
 
-  return fileContents
+    return fileContents
+  } catch (err) {
+    throw new Error(`Error reading files: ${err.message}`)
+  }
 }
 
 const { ESLint } = require("eslint")
@@ -270,20 +299,6 @@ function analyzeChromeAPIUsage(fileContents) {
 
   return chromeAPIUsage
 }
-
-// function analyzeMetadata(manifest) {
-//   let score = 0
-
-//   if (!manifest.author) score += 1
-
-//   if (!manifest.developer || !manifest.developer.email) score += 1
-
-//   if (!manifest.privacy_policy) score += 1
-
-//   if (!manifest.homepage_url) score += 1
-
-//   return score
-// }
 
 // Recursive function to find CSP in the manifest object
 function findCSP(obj) {
@@ -403,9 +418,6 @@ function analyzeManifest(manifest) {
       analysisResult.chromeOsKeys.push(key)
     }
   })
-
-  // Additional Security Checks
-  // Placeholder for additional security-related checks that you might add
 
   return analysisResult
 }
