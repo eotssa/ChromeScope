@@ -177,9 +177,9 @@ const Main = () => {
     setSearchInput(url)
     // Programmatically submit the form
     // Assuming the form has a unique ID 'search-form'
-    document
-      .getElementById("search-form")
-      .dispatchEvent(new Event("submit", { cancelable: true }))
+    // document
+    //   .getElementById("search-form")
+    //   .dispatchEvent(new Event("submit", { cancelable: true }))
   }
 
   return (
