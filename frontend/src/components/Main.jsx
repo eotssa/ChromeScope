@@ -227,8 +227,13 @@ const Main = () => {
                       <button
                         type="submit"
                         className="btn bg-sky-500 text-slate-200 text-lg absolute right-0 top-0 rounded-l-none"
+                        disabled={loading}
                       >
-                        Search
+                        {loading ? (
+                          <span className="loading loading-bars loading-lg"></span>
+                        ) : (
+                          "Search"
+                        )}
                       </button>
                     </div>
                   </div>
@@ -335,7 +340,11 @@ const Main = () => {
                       className="btn btn-neutral mt-4 mx-auto max-w "
                       disabled={loading}
                     >
-                      Upload and Analyze
+                      {loading ? (
+                        <span className="loading loading-bars loading-lg"></span>
+                      ) : (
+                        "Upload and Analyze"
+                      )}
                     </button>
                   </div>
                 </form>
