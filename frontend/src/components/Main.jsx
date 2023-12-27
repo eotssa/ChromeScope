@@ -93,7 +93,7 @@ const Main = () => {
 
     try {
       setLoading(true)
-      const response = await axios.post("http://localhost:3001/link", {
+      const response = await axios.post("https://chromescope.net/link", {
         extensionUrl: searchInput.trim(),
       })
 
@@ -117,11 +117,15 @@ const Main = () => {
       formData.append("extensionFile", selectedFile)
 
       try {
-        const response = await axios.post("/your-upload-route", formData, {
-          headers: {
-            "Content-Type": "multipart/form-data",
-          },
-        })
+        const response = await axios.post(
+          "https://chromescope.net/upload",
+          formData,
+          {
+            headers: {
+              "Content-Type": "multipart/form-data",
+            },
+          }
+        )
 
         setJsonData(response.data) // Assuming you have a setter for setting JSON data state
       } catch (error) {
@@ -146,7 +150,7 @@ const Main = () => {
     try {
       setLoading(true)
       const response = await axios.post(
-        `http://localhost:3001/upload`,
+        `https://chromescope.net/upload`,
         formData,
         {
           headers: {

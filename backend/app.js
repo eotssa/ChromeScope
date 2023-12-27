@@ -16,7 +16,8 @@ app.use(express.json())
 app.use(express.static("dist"))
 
 // rate limiting middleware -- applies to all routes at the moment
-app.use(limiter)
+// app.use(limiter)
+// app.set("trust proxy", 1) // Trust first proxy
 
 app.use("/upload", uploadRoutes)
 app.use("/link", link)
