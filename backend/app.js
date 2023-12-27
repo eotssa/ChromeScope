@@ -23,8 +23,37 @@ app.use("/link", link)
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-  console.error(err)
-  res.status(500).send("Internal Server Error")
+  console.error(err) // Log the full error for server-side debugging
+
+  let errorMessage = "Internal Server Error"
+  let statusCode = 500
+
+  switch (err.message) {
+    case "Invalid or disallowed URL":
+      errorMessage = err.message
+      statusCode = 400
+      break
+    case "Extension URL is required":
+      errorMessage = err.message
+      statusCode = 400
+      break
+    case "Not a valid CRX file":
+    case "Unsupported CRX version":
+      errorMessage = err.message
+      statusCode = 422 // Unprocessable Entity
+      break
+    case "Manifest JSON parsing failed":
+      errorMessage = err.message
+      statusCode = 422
+      break
+    case err.message.startsWith("Error reading files:"):
+      errorMessage = err.message
+      statusCode = 500
+      break
+    // Add more cases as needed
+  }
+
+  res.status(statusCode).json({ error: errorMessage })
 })
 
 module.exports = app
