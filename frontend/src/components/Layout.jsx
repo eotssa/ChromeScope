@@ -12,16 +12,16 @@ const Layout = ({ children }) => {
             </a>
           </div>
           <div className="flex-none">
-            <ul className="menu menu-horizontal px-1 font-bold">
+            <ul className="menu menu-horizontal text-lg	 pr-10 font-bold">
               <li>
                 <Link to="/docs">Docs</Link>
               </li>
-              <li>
+              {/* <li>
                 <Link to="/pricing">Pricing</Link>
               </li>
               <li>
                 <Link to="/support">Support Me</Link>
-              </li>
+              </li> */}
             </ul>
           </div>
         </div>

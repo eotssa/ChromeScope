@@ -14,8 +14,8 @@ const App = () => {
       <Layout>
         <Routes>
           <Route path="/docs" element={<Docs />} />
-          <Route path="/pricing" element={<Pricing />} />
-          <Route path="/support" element={<Support />} />
+          {/* <Route path="/pricing" element={<Pricing />} />
+          <Route path="/support" element={<Support />} /> */}
           <Route path="/" element={<Main />} />{" "}
           {/* Use Main component for root path */}
         </Routes>
