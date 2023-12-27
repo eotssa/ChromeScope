@@ -5,7 +5,7 @@ const link = require("./routes/link")
 const rateLimit = require("express-rate-limit")
 
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
+  windowMs: 60 * 60 * 1000, // 1 hour
   max: 100, // limit each IP to 100 requests per windowMs
 })
 
@@ -16,8 +16,8 @@ app.use(express.json())
 app.use(express.static("dist"))
 
 // rate limiting middleware -- applies to all routes at the moment
-// app.use(limiter)
-// app.set("trust proxy", 1) // Trust first proxy
+app.use(limiter)
+app.set("trust proxy", 1) // Trust first proxy, may be a reverse proxy -- should be ok
 
 app.use("/upload", uploadRoutes)
 app.use("/link", link)
