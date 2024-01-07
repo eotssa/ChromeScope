@@ -1,63 +1,63 @@
-import React from "react"
-import { useState } from "react"
-import { useEffect } from "react"
+import React from 'react'
+import { useState } from 'react'
+import { useEffect } from 'react'
 
-import axios from "axios"
-import "../index.css"
+import axios from 'axios'
+import '../index.css'
 
 const features = [
   {
-    name: "Manifest Analysis",
+    name: 'Manifest Analysis',
     description:
-      "Evaluates extension metadata, Content Security Policy (CSP), and permissions for security issues.",
+      'Evaluates extension metadata, Content Security Policy (CSP), and permissions for security issues.',
   },
   {
-    name: "JavaScript Analysis",
-    description: "Conducts security-focused code quality assessment",
+    name: 'JavaScript Analysis',
+    description: 'Conducts security-focused code quality assessment',
   },
   {
-    name: "Chrome API and Data Handling",
+    name: 'Chrome API and Data Handling',
     description:
-      "Scrutinizes Chrome API usage and data handling practices and policies for security issues.",
+      'Scrutinizes Chrome API usage and data handling practices and policies for security issues.',
   },
   {
-    name: "Vulnerability Analysis",
-    description: "Identifies known vulnerabilities in JavaScript libraries",
+    name: 'Vulnerability Analysis',
+    description: 'Identifies known vulnerabilities in JavaScript libraries',
   },
   {
-    name: "JSON Response",
+    name: 'JSON Response',
     description:
-      "Comprehensive report detailing the total risk score and specific assessments to empower your needs.",
+      'Comprehensive report detailing the total risk score and specific assessments to empower your needs.',
   },
   {
-    name: "Future Plans",
+    name: 'Future Plans',
     description:
-      "API call integration, network analysis, automated CWS upload and more!",
+      'API call integration, network analysis, automated CWS upload and more!',
   },
 ]
 
 const placeholder = {
-  name: "",
-  version: "",
-  description: "",
-  totalRiskScore: "",
+  name: '',
+  version: '',
+  description: '',
+  totalRiskScore: '',
   breakdownRiskScore: {
-    content_security_policy: "",
-    permissions: "",
-    jsLibrariesScore: "",
-    chromeAPIUsage: "",
-    eslintIssues_notScored: "",
+    content_security_policy: '',
+    permissions: '',
+    jsLibrariesScore: '',
+    chromeAPIUsage: '',
+    eslintIssues_notScored: '',
   },
   details: {
     manifestAnalysis: {
-      manifestVersion: "",
+      manifestVersion: '',
       cspDetails: {},
       permissionsDetails: {},
       backgroundScripts: [],
       contentScriptsDomains: [],
       webAccessibleResources: [],
       externallyConnectable: [],
-      updateUrl: "",
+      updateUrl: '',
       oauth2: false,
       specificOverrides: [],
       developerInfo: {},
@@ -77,8 +77,8 @@ const Main = () => {
   const [searchErrorMessage, setSearchErrorMessage] = useState(null)
   const [uploadErrorMessage, setUploadErrorMessage] = useState(null)
 
-  const [searchInput, setSearchInput] = useState("")
-  const [jsonData, setJsonData] = useState("")
+  const [searchInput, setSearchInput] = useState('')
+  const [jsonData, setJsonData] = useState('')
 
   useEffect(() => {
     setJsonData(placeholder)
@@ -87,21 +87,21 @@ const Main = () => {
   const handleSearch = async (e) => {
     e.preventDefault()
     if (!searchInput.trim()) {
-      setSearchErrorMessage("Please enter a valid extension URL.")
+      setSearchErrorMessage('Please enter a valid extension URL.')
       return
     }
 
     try {
       setLoading(true)
-      const response = await axios.post("https://chromescope.net/link", {
+      const response = await axios.post('https://chromescope.net/link', {
         extensionUrl: searchInput.trim(),
       })
 
       setJsonData(response.data)
       setSearchErrorMessage(null)
     } catch (error) {
-      console.error("Error in search:", error)
-      setSearchErrorMessage("Error fetching data. Ensure the URL is correct.")
+      console.error('Error in search:', error)
+      setSearchErrorMessage('Error fetching data. Ensure the URL is correct.')
     } finally {
       setLoading(false)
     }
@@ -114,22 +114,22 @@ const Main = () => {
       setFile(selectedFile) // Assuming you have a setter for setting file state
 
       const formData = new FormData()
-      formData.append("extensionFile", selectedFile)
+      formData.append('extensionFile', selectedFile)
 
       try {
         const response = await axios.post(
-          "https://chromescope.net/upload",
+          'https://chromescope.net/upload',
           formData,
           {
             headers: {
-              "Content-Type": "multipart/form-data",
+              'Content-Type': 'multipart/form-data',
             },
           }
         )
 
         setJsonData(response.data) // Assuming you have a setter for setting JSON data state
       } catch (error) {
-        console.error("Error in file upload:", error)
+        console.error('Error in file upload:', error)
       }
     }
   }
@@ -139,13 +139,13 @@ const Main = () => {
     e.preventDefault()
     if (!file) {
       setUploadErrorMessage(
-        "Please select a Chrome extension zip file to upload."
+        'Please select a Chrome extension zip file to upload.'
       )
       return
     }
 
     const formData = new FormData()
-    formData.append("extensionFile", file)
+    formData.append('extensionFile', file)
 
     try {
       setLoading(true)
@@ -154,7 +154,7 @@ const Main = () => {
         formData,
         {
           headers: {
-            "Content-Type": "multipart/form-data",
+            'Content-Type': 'multipart/form-data',
           },
         }
       )
@@ -163,9 +163,9 @@ const Main = () => {
       setAnalysisResult(response.data)
       setUploadErrorMessage(null)
     } catch (error) {
-      console.error("Error uploading file:", error)
+      console.error('Error uploading file:', error)
       setUploadErrorMessage(
-        "Error analyzing the file. Please ensure it is a valid zip or crx file."
+        'Error analyzing the file. Please ensure it is a valid zip or crx file.'
       )
     } finally {
       setLoading(false)
@@ -232,7 +232,7 @@ const Main = () => {
                         {loading ? (
                           <span className="loading loading-bars loading-lg"></span>
                         ) : (
-                          "Search"
+                          'Search'
                         )}
                       </button>
                     </div>
@@ -262,7 +262,7 @@ const Main = () => {
                       className="btn btn-outline text-md rounded-none  w-full sm:w-auto px-4"
                       onClick={() =>
                         handleButtonClick(
-                          "https://chromewebstore.google.com/detail/remindoro/njmniggbfobokemdjebnhmbldimkofkc"
+                          'https://chromewebstore.google.com/detail/remindoro/njmniggbfobokemdjebnhmbldimkofkc'
                         )
                       }
                     >
@@ -272,7 +272,7 @@ const Main = () => {
                       type="button"
                       className="btn btn-outline text-md rounded-none w-full sm:w-auto px-4"
                       onClick={() =>
-                        handleButtonClick("ohdfhnkelpnfiamkjnfbbafnhleohmma")
+                        handleButtonClick('ohdfhnkelpnfiamkjnfbbafnhleohmma')
                       }
                     >
                       Youtube Party
@@ -282,11 +282,11 @@ const Main = () => {
                       className="btn btn-outline text-md rounded-none w-full sm:w-auto px-4"
                       onClick={() =>
                         handleButtonClick(
-                          "https://chromewebstore.google.com/detail/netflix-party-is-now-tele/oocalimimngaihdkbihfgmpkcpnmlaoa"
+                          'https://chromewebstore.google.com/detail/supercopy-enable-copy/onepmapfbjohnegdmfhndpefjkppbjkm'
                         )
                       }
                     >
-                      Teleparty
+                      SuperCopy
                     </button>
                   </div>
                 </form>
@@ -315,7 +315,7 @@ const Main = () => {
                 <button className="btn bg-sky-500 text-neutral-200 text-lg rounded-none hover:bg-sky-600 px-4">
                   View Source Code
                 </button>
-              </a>{" "}
+              </a>{' '}
             </div>
           </div>
           <div className="w-full px-4 py-6 lg:w-7/12 lg:px-8 xl:px-12">
@@ -343,7 +343,7 @@ const Main = () => {
                       {loading ? (
                         <span className="loading loading-bars loading-lg"></span>
                       ) : (
-                        "Upload and Analyze"
+                        'Upload and Analyze'
                       )}
                     </button>
                   </div>
@@ -455,7 +455,7 @@ const Main = () => {
                     target="_blank"
                     rel="noopener noreferrer"
                   >
-                    {" "}
+                    {' '}
                     <h5 className="mb-2 text-2xl font-bold tracking-tight text-gray-900 dark:text-white">
                       22 More Crypto-Stealing Google Chrome Extensions
                       Discovered
