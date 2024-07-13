@@ -192,15 +192,16 @@ const Main = () => {
                 Automate Extension Risk Assessment
               </h1>
               <p className="py-6 text-lg font-medium">
-                Innovating Extension Security - Comprehensive, Automated
-                Analysis for Enhanced Digital Trust.
+                Make informed decisions about the Chrome extensions you use.
+                Enter the extension URL or upload the extension file to get a
+                detailed risk assessment report.
               </p>
               <a
                 href="mailto:wilsonwu97@outlook.com"
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                <button className="btn bg-sky-500 text-neutral-200 text-lg rounded-none hover:bg-sky-600 px-4">
+                <button className="btn bg-sky-500 text-neutral-200 text-lg rounded-full hover:bg-sky-600 px-4">
                   Contact Me
                 </button>
               </a>
@@ -272,10 +273,12 @@ const Main = () => {
                       type="button"
                       className="btn btn-outline text-md rounded-none w-full sm:w-auto px-4"
                       onClick={() =>
-                        handleButtonClick('ohdfhnkelpnfiamkjnfbbafnhleohmma')
+                        handleButtonClick(
+                          'https://chromewebstore.google.com/detail/raindropio/ldgfbffkinooeloadekpmfoklnobpien'
+                        )
                       }
                     >
-                      Youtube Party
+                      Rainrop.io
                     </button>
                     <button
                       type="button"
@@ -312,7 +315,7 @@ const Main = () => {
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                <button className="btn bg-sky-500 text-neutral-200 text-lg rounded-none hover:bg-sky-600 px-4">
+                <button className="btn bg-sky-500 text-neutral-200 text-lg rounded-full hover:bg-sky-600 px-4">
                   View Source Code
                 </button>
               </a>{' '}

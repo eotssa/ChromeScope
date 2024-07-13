@@ -85,6 +85,9 @@ function getExtensionIdFromLink(urlOrId) {
 }
 
 router.post('/', upload.single('extensionUrl'), async (req, res, next) => {
+  // Increase the timeout for this route
+  req.setTimeout(60000) // Set timeout to 5 minutes
+
   let tempPath = createTempDirectory()
 
   try {
