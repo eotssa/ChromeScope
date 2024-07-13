@@ -278,7 +278,7 @@ const Main = () => {
                         )
                       }
                     >
-                      Rainrop.io
+                      Raindrop.io
                     </button>
                     <button
                       type="button"
