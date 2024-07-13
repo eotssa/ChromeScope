@@ -1,17 +1,17 @@
-const express = require("express")
+const express = require('express')
 const router = express.Router()
-const axios = require("axios")
-const multer = require("multer")
-const { Readable } = require("stream")
-const fs = require("fs")
-const path = require("path")
+const axios = require('axios')
+const multer = require('multer')
+const { Readable } = require('stream')
+const fs = require('fs')
+const path = require('path')
 
-const admZip = require("adm-zip")
+const admZip = require('adm-zip')
 const {
   createTempDirectory,
   deleteTempDirectory,
-} = require("../utils/fileUltils")
-const { exec } = require("child_process") // Used to run retire.js as a command line tool
+} = require('../utils/fileUltils')
+const { exec } = require('child_process') // Used to run retire.js as a command line tool
 
 // Set up file storage in memory
 const storage = multer.memoryStorage()
@@ -22,8 +22,8 @@ const upload = multer({
 
 function buildDownloadLink(extensionId) {
   const baseUrl =
-    "https://clients2.google.com/service/update2/crx?response=redirect&prodversion=49.0&acceptformat=crx3&x=id%3D***%26installsource%3Dondemand%26uc"
-  return baseUrl.replace("***", extensionId)
+    'https://clients2.google.com/service/update2/crx?response=redirect&prodversion=49.0&acceptformat=crx3&x=id%3D***%26installsource%3Dondemand%26uc'
+  return baseUrl.replace('***', extensionId)
 }
 
 function parseCRX(buffer) {
@@ -32,7 +32,7 @@ function parseCRX(buffer) {
 
   if (magic !== 0x34327243) {
     // https://searchfox.org/mozilla-central/source/modules/libjar/nsZipArchive.cpp
-    throw new Error("Not a valid CRX file")
+    throw new Error('Not a valid CRX file')
   }
 
   const version = buffer.readUInt32LE(4)
@@ -47,7 +47,7 @@ function parseCRX(buffer) {
     const headerSize = buffer.readUInt32LE(8)
     zipStart = 12 + headerSize
   } else {
-    throw new Error("Unsupported CRX version")
+    throw new Error('Unsupported CRX version')
   }
 
   return buffer.slice(zipStart)
@@ -61,19 +61,19 @@ function bufferToStream(buffer) {
 }
 
 const allowedHosts = [
-  "chrome.google.com",
-  "chromewebstore.google.com",
+  'chrome.google.com',
+  'chromewebstore.google.com',
   // Add any other hosts for future implementations ... e.g., Firefox
 ]
 
 function getExtensionIdFromLink(urlOrId) {
   const urlPattern =
-    /^https?:\/\/(chromewebstore\.google\.com)\/detail\/[a-zA-Z0-9\-_]+\/([a-zA-Z0-9]+)$/
-  const idPattern = /^[a-zA-Z0-9]+$/ // Regex for matching a standalone ID
+    /^https?:\/\/(?:chrome\.google\.com\/webstore\/detail|chromewebstore\.google\.com\/(?:webstore\/)?detail)\/[a-zA-Z0-9\-_]+\/([a-zA-Z0-9]+)$/
+  const idPattern = /^[a-zA-Z0-9]{32}$/ // Chrome extension IDs are exactly 32 alphanumeric characters
 
   const urlMatch = urlOrId.match(urlPattern)
-  if (urlMatch && allowedHosts.includes(urlMatch[1])) {
-    return urlMatch[2] // Return the ID from the URL
+  if (urlMatch) {
+    return urlMatch[1] // Return the ID from the URL
   }
 
   const idMatch = urlOrId.match(idPattern)
@@ -81,29 +81,28 @@ function getExtensionIdFromLink(urlOrId) {
     return urlOrId // Return the ID directly
   }
 
-  throw new Error("Invalid or disallowed URL")
-  return null // Return null if neither pattern matches or host is not allowed
+  throw new Error('Invalid or disallowed URL or ID')
 }
 
-router.post("/", upload.single("extensionUrl"), async (req, res, next) => {
+router.post('/', upload.single('extensionUrl'), async (req, res, next) => {
   let tempPath = createTempDirectory()
 
   try {
     const extensionUrl = req.body.extensionUrl
     if (!extensionUrl) {
-      throw new Error("Extension URL is required")
+      throw new Error('Extension URL is required')
     }
 
     const extensionId = getExtensionIdFromLink(extensionUrl)
     if (!extensionId) {
-      throw new Error("Invalid or disallowed extension URL")
+      throw new Error('Invalid or disallowed extension URL')
     }
 
     const downloadLink = buildDownloadLink(extensionId)
     let crxBuffer
     try {
       const response = await axios.get(downloadLink, {
-        responseType: "arraybuffer",
+        responseType: 'arraybuffer',
         maxContentLength: 50 * 1024 * 1024,
       })
       crxBuffer = Buffer.from(response.data)
@@ -126,9 +125,9 @@ router.post("/", upload.single("extensionUrl"), async (req, res, next) => {
 
     let manifest
     try {
-      manifest = JSON.parse(zip.readAsText("manifest.json"))
+      manifest = JSON.parse(zip.readAsText('manifest.json'))
     } catch (jsonError) {
-      next(new Error("Manifest JSON parsing failed"))
+      next(new Error('Manifest JSON parsing failed'))
       return
     }
 
@@ -151,9 +150,9 @@ router.post("/", upload.single("extensionUrl"), async (req, res, next) => {
       cspAnalysis.score + permissionsAnalysis.score + jsLibrariesScore
 
     const result = {
-      name: manifest.name || "No name specified",
-      version: manifest.version || "No version specified",
-      description: manifest.description || "No description specified",
+      name: manifest.name || 'No name specified',
+      version: manifest.version || 'No version specified',
+      description: manifest.description || 'No description specified',
       totalRiskScore: totalRiskScore || 0,
       breakdownRiskScore: {
         content_security_policy: cspAnalysis.score,
@@ -193,8 +192,8 @@ async function readFiles(directoryPath, basePath = directoryPath) {
       if (fs.statSync(fullPath).isDirectory()) {
         const nestedFiles = await readFiles(fullPath, basePath)
         fileContents = { ...fileContents, ...nestedFiles }
-      } else if (path.extname(file) === ".js") {
-        const content = fs.readFileSync(fullPath, "utf-8")
+      } else if (path.extname(file) === '.js') {
+        const content = fs.readFileSync(fullPath, 'utf-8')
         fileContents[relativePath] = content // Use relative path as key
       }
     }
@@ -205,7 +204,7 @@ async function readFiles(directoryPath, basePath = directoryPath) {
   }
 }
 
-const { ESLint } = require("eslint")
+const { ESLint } = require('eslint')
 
 //TODO: limit file size and minified files
 //TOD: consider running eslint in a isolated environment / docker container
@@ -213,8 +212,8 @@ async function runESLintOnDirectory(directoryPath) {
   const eslint = new ESLint({
     useEslintrc: false,
     baseConfig: {
-      plugins: ["security"],
-      extends: ["plugin:security/recommended"],
+      plugins: ['security'],
+      extends: ['plugin:security/recommended'],
     },
   })
 
@@ -302,16 +301,16 @@ function analyzeChromeAPIUsage(fileContents) {
 
 // Recursive function to find CSP in the manifest object
 function findCSP(obj) {
-  if (typeof obj === "object" && obj !== null) {
+  if (typeof obj === 'object' && obj !== null) {
     for (let key in obj) {
-      if (key.toLowerCase() === "content_security_policy") {
-        if (typeof obj[key] === "string") {
+      if (key.toLowerCase() === 'content_security_policy') {
+        if (typeof obj[key] === 'string') {
           return obj[key]
-        } else if (typeof obj[key] === "object") {
+        } else if (typeof obj[key] === 'object') {
           // If the CSP is nested within an object
           return findCSP(obj[key])
         }
-      } else if (typeof obj[key] === "object") {
+      } else if (typeof obj[key] === 'object') {
         let result = findCSP(obj[key])
         if (result) return result
       }
@@ -327,11 +326,11 @@ function analyzeCSP(manifest) {
 
   if (!csp) {
     score += 25 // No CSP present
-    cspDetails["warning:"] = "NO CSP DEFINED"
+    cspDetails['warning:'] = 'NO CSP DEFINED'
   } else {
-    const policies = csp.split(";").filter(Boolean)
+    const policies = csp.split(';').filter(Boolean)
     policies.forEach((policy) => {
-      const policyParts = policy.split(" ").filter(Boolean)
+      const policyParts = policy.split(' ').filter(Boolean)
       const directive = policyParts.shift() // e.g., 'script-src', 'object-src'
 
       policyParts.forEach((source) => {
@@ -349,7 +348,7 @@ function analyzeCSP(manifest) {
 
 function analyzeManifest(manifest) {
   let analysisResult = {
-    manifestVersion: manifest.manifest_version || "Unknown",
+    manifestVersion: manifest.manifest_version || 'Unknown',
     cspDetails: analyzeCSP(manifest).details,
     permissionsDetails: analyzePermissions(manifest).details,
     backgroundScripts: [],
@@ -401,7 +400,7 @@ function analyzeManifest(manifest) {
   }
 
   // Chrome Specific Overrides
-  ;["chrome_url_overrides", "chrome_settings_overrides"].forEach((key) => {
+  ;['chrome_url_overrides', 'chrome_settings_overrides'].forEach((key) => {
     if (manifest[key]) {
       analysisResult.specificOverrides.push(key)
     }
@@ -413,7 +412,7 @@ function analyzeManifest(manifest) {
   }
 
   // Chrome OS Specific Keys
-  ;["file_browser_handlers", "input_components"].forEach((key) => {
+  ;['file_browser_handlers', 'input_components'].forEach((key) => {
     if (manifest[key]) {
       analysisResult.chromeOsKeys.push(key)
     }
@@ -456,9 +455,9 @@ function calculateJSLibrariesScore(retireJsResults) {
         jsLibrariesDetails[vulnKey] = {
           component: library.component,
           severity: vulnerability.severity?.toLowerCase(),
-          info: vulnerability.info?.join(", "),
+          info: vulnerability.info?.join(', '),
           summary: vulnerability.identifiers?.summary,
-          CVE: vulnerability.identifiers?.CVE?.join(", ") || "",
+          CVE: vulnerability.identifiers?.CVE?.join(', ') || '',
         }
       })
     })
@@ -470,13 +469,13 @@ function calculateJSLibrariesScore(retireJsResults) {
 
 function determineVulnerabilityScore(vulnerability) {
   switch (vulnerability.severity.toLowerCase()) {
-    case "low":
+    case 'low':
       return 10
-    case "medium":
+    case 'medium':
       return 20
-    case "high":
+    case 'high':
       return 30
-    case "critical":
+    case 'critical':
       return 40
     default:
       return 0
@@ -502,101 +501,101 @@ function analyzePermissions(manifest) {
   // Map permissions to their respective risk categories
   const permissionRiskLevels = {
     // 'least' risk
-    alarms: "least",
-    contextMenus: "least",
-    "enterprise.deviceAttributes": "least",
-    fileBrowserHandler: "least",
-    fontSettings: "least",
-    gcm: "least",
-    idle: "least",
-    power: "least",
-    "system.cpu": "least",
-    "system.display": "least",
-    "system.memory": "least",
-    tts: "least",
-    unlimitedStorage: "least",
-    wallpaper: "least",
-    externally_connectable: "least",
-    mediaGalleries: "least",
+    alarms: 'least',
+    contextMenus: 'least',
+    'enterprise.deviceAttributes': 'least',
+    fileBrowserHandler: 'least',
+    fontSettings: 'least',
+    gcm: 'least',
+    idle: 'least',
+    power: 'least',
+    'system.cpu': 'least',
+    'system.display': 'least',
+    'system.memory': 'least',
+    tts: 'least',
+    unlimitedStorage: 'least',
+    wallpaper: 'least',
+    externally_connectable: 'least',
+    mediaGalleries: 'least',
 
     // 'low' risk
-    printerProvider: "low",
-    certificateProvider: "low",
-    documentScan: "low",
-    "enterprise.platformKeys": "low",
-    hid: "low",
-    identity: "low",
-    "networking.config": "low",
-    notifications: "low",
-    platformKeys: "low",
-    usbDevices: "low",
-    webRequestBlocking: "low",
-    overrideEscFullscreen: "low",
+    printerProvider: 'low',
+    certificateProvider: 'low',
+    documentScan: 'low',
+    'enterprise.platformKeys': 'low',
+    hid: 'low',
+    identity: 'low',
+    'networking.config': 'low',
+    notifications: 'low',
+    platformKeys: 'low',
+    usbDevices: 'low',
+    webRequestBlocking: 'low',
+    overrideEscFullscreen: 'low',
 
     // 'medium' risk
-    activeTab: "medium",
-    background: "medium",
-    bookmarks: "medium",
-    clipboardWrite: "medium",
-    downloads: "medium",
-    fileSystemProvider: "medium",
-    management: "medium",
-    nativeMessaging: "medium",
-    geolocation: "medium",
-    processes: "medium",
-    signedInDevices: "medium",
-    storage: "medium",
-    "system.storage": "medium",
-    tabs: "medium",
-    topSites: "medium",
-    ttsEngine: "medium",
-    webNavigation: "medium",
-    syncFileSystem: "medium",
-    fileSystem: "medium",
+    activeTab: 'medium',
+    background: 'medium',
+    bookmarks: 'medium',
+    clipboardWrite: 'medium',
+    downloads: 'medium',
+    fileSystemProvider: 'medium',
+    management: 'medium',
+    nativeMessaging: 'medium',
+    geolocation: 'medium',
+    processes: 'medium',
+    signedInDevices: 'medium',
+    storage: 'medium',
+    'system.storage': 'medium',
+    tabs: 'medium',
+    topSites: 'medium',
+    ttsEngine: 'medium',
+    webNavigation: 'medium',
+    syncFileSystem: 'medium',
+    fileSystem: 'medium',
 
     // 'high' risk
-    clipboardRead: "high",
-    contentSettings: "high",
-    desktopCapture: "high",
-    displaySource: "high",
-    dns: "high",
-    experimental: "high",
-    history: "high",
-    "http://*/*": "high",
-    "https://*/*": "high",
-    "file:///*": "high",
-    "http://*/": "high",
-    "https://*/": "high",
-    mdns: "high",
-    pageCapture: "high",
-    privacy: "high",
-    proxy: "high",
-    vpnProvider: "high",
-    browsingData: "high",
-    audioCapture: "high",
-    videoCapture: "high",
+    clipboardRead: 'high',
+    contentSettings: 'high',
+    desktopCapture: 'high',
+    displaySource: 'high',
+    dns: 'high',
+    experimental: 'high',
+    history: 'high',
+    'http://*/*': 'high',
+    'https://*/*': 'high',
+    'file:///*': 'high',
+    'http://*/': 'high',
+    'https://*/': 'high',
+    mdns: 'high',
+    pageCapture: 'high',
+    privacy: 'high',
+    proxy: 'high',
+    vpnProvider: 'high',
+    browsingData: 'high',
+    audioCapture: 'high',
+    videoCapture: 'high',
 
     // 'critical' risk
-    cookies: "critical",
-    debugger: "critical",
-    declarativeWebRequest: "critical",
-    webRequest: "critical",
-    "<all_urls>": "critical",
-    "*://*/*": "critical",
-    "*://*/": "critical",
-    content_security_policy: "critical",
-    declarativeNetRequest: "critical",
-    copresence: "critical",
-    usb: "critical",
-    "unsafe-eval": "critical",
-    web_accessible_resources: "critical",
+    cookies: 'critical',
+    debugger: 'critical',
+    declarativeWebRequest: 'critical',
+    webRequest: 'critical',
+    '<all_urls>': 'critical',
+    '*://*/*': 'critical',
+    '*://*/': 'critical',
+    content_security_policy: 'critical',
+    declarativeNetRequest: 'critical',
+    copresence: 'critical',
+    usb: 'critical',
+    'unsafe-eval': 'critical',
+    web_accessible_resources: 'critical',
   }
 
   permissions.forEach((permission) => {
-    const riskLevel = permissionRiskLevels[permission] || "least"
+    const riskLevel = permissionRiskLevels[permission] || 'least'
     score += riskScores[riskLevel]
 
-    if (riskLevel !== "least") {
+    if (riskLevel !== 'least') {
       permissionsDetails[
         permission
       ] = `Permission '${permission}' classified as ${riskLevel} risk.`
