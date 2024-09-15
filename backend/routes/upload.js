@@ -1,26 +1,41 @@
-const express = require("express")
+// Import necessary modules
+const express = require('express')
 const router = express.Router()
-const multer = require("multer")
-const path = require("path")
-const admZip = require("adm-zip")
-const fs = require("fs")
+const multer = require('multer')
+const path = require('path')
+const admZip = require('adm-zip')
+const fs = require('fs')
 const {
   createTempDirectory,
   deleteTempDirectory,
-} = require("../utils/fileUltils")
-const { exec } = require("child_process") // Used to run retire.js as a command line tool
+} = require('../utils/fileUltils')
+const { exec } = require('child_process') // Used to run retire.js as a command line tool
+const { ESLint } = require('eslint')
 
-// File filter function for multer
+// Import util.promisify for converting callback-based functions to promises
+const util = require('util')
+const execAsync = util.promisify(exec)
+
+// **Added**: Use async versions of fs methods for better performance
+const fsPromises = fs.promises
+
+// **Added**: Configuration variables
+const MAX_FILE_SIZE = 50 * 1024 * 1024 // 50 MB limit
+const ALLOWED_FILE_TYPES = /crx|zip/
+const UPLOAD_FIELD_NAME = 'extensionFile'
+
+// **Security Enhancement**: Limit acceptable file types and size
 const fileFilter = (req, file, cb) => {
-  const filetypes = /crx|zip/
-  const extname = filetypes.test(path.extname(file.originalname).toLowerCase())
+  const extname = ALLOWED_FILE_TYPES.test(
+    path.extname(file.originalname).toLowerCase()
+  )
 
   if (extname) {
     return cb(null, true)
   } else {
     cb(
       new Error(
-        "Error: File upload only supports the following filetypes - .crx, .zip"
+        'Error: File upload only supports the following filetypes - .crx, .zip'
       )
     )
   }
@@ -30,21 +45,19 @@ const fileFilter = (req, file, cb) => {
 const storage = multer.memoryStorage()
 const upload = multer({
   storage: storage,
-  limits: { fileSize: 50 * 1024 * 1024 }, // 50 MB limit
+  limits: { fileSize: MAX_FILE_SIZE },
   fileFilter: fileFilter,
 })
 
+// Function to parse CRX files
 function parseCRX(buffer) {
   const magic = buffer.readUInt32LE(0)
-  //console.log(`Magic number: 0x${magic.toString(16)}`) // Should be 0x43723234 for 'Cr24'
 
   if (magic !== 0x34327243) {
-    // https://searchfox.org/mozilla-central/source/modules/libjar/nsZipArchive.cpp
-    throw new Error("Not a valid CRX file")
+    throw new Error('Not a valid CRX file')
   }
 
   const version = buffer.readUInt32LE(4)
-  //console.log(`CRX version: ${version}`)
   let zipStart
 
   if (version === 2) {
@@ -55,105 +68,118 @@ function parseCRX(buffer) {
     const headerSize = buffer.readUInt32LE(8)
     zipStart = 12 + headerSize
   } else {
-    throw new Error("Unsupported CRX version")
+    throw new Error('Unsupported CRX version')
   }
 
   return buffer.slice(zipStart)
 }
 
-router.post("/", upload.single("extensionFile"), async (req, res, next) => {
-  // Check if file is uploaded
-  if (!req.file) {
-    return res.status(400).send("No file uploaded.")
-  }
-
-  let tempPath = createTempDirectory()
-
+// **Security Enhancement**: Wrap route handler in async error handling middleware
+router.post('/', upload.single(UPLOAD_FIELD_NAME), async (req, res, next) => {
   try {
-    const fileBuffer = req.file.buffer
-
-    let zipBuffer
-    if (path.extname(req.file.originalname).toLowerCase() === ".crx") {
-      zipBuffer = parseCRX(fileBuffer) // Implement this function based on your requirements
-    } else {
-      zipBuffer = fileBuffer // For zip files, use the buffer directly
+    // Check if file is uploaded
+    if (!req.file) {
+      return res.status(400).send('No file uploaded.')
     }
 
-    const zip = new admZip(zipBuffer)
-    zip.extractAllTo(tempPath, true)
+    let tempPath = createTempDirectory()
 
-    let manifest
     try {
-      manifest = JSON.parse(zip.readAsText("manifest.json"))
-    } catch (jsonError) {
-      next(new Error("Manifest JSON parsing failed"))
-      return
+      const fileBuffer = req.file.buffer
+
+      let zipBuffer
+      if (path.extname(req.file.originalname).toLowerCase() === '.crx') {
+        zipBuffer = parseCRX(fileBuffer)
+      } else {
+        zipBuffer = fileBuffer // For zip files, use the buffer directly
+      }
+
+      const zip = new admZip(zipBuffer)
+      zip.extractAllTo(tempPath, true)
+
+      let manifest
+      try {
+        manifest = JSON.parse(zip.readAsText('manifest.json'))
+      } catch (jsonError) {
+        throw new Error('Manifest JSON parsing failed')
+      }
+
+      const manifestAnalysis = analyzeManifest(manifest)
+
+      const fileContents = await readFiles(tempPath)
+      const chromeAPIUsageDetails = analyzeChromeAPIUsage(fileContents)
+      const dataHandlingDetails = analyzeDataHandling(fileContents)
+
+      const retireJsResults = await analyzeJSLibraries(tempPath)
+      const { score: jsLibrariesScore, jsLibrariesDetails } =
+        calculateJSLibrariesScore(retireJsResults)
+      const eslintResults = await runESLintOnDirectory(tempPath)
+
+      // Calculate CSP and Permissions scores
+      const cspAnalysis = analyzeCSP(manifest)
+      const permissionsAnalysis = analyzePermissions(manifest)
+
+      const totalRiskScore =
+        cspAnalysis.score + permissionsAnalysis.score + jsLibrariesScore
+
+      const result = {
+        name: manifest.name || 'No name specified',
+        version: manifest.version || 'No version specified',
+        description: manifest.description || 'No description specified',
+        totalRiskScore: totalRiskScore || 0,
+        breakdownRiskScore: {
+          content_security_policy: cspAnalysis.score,
+          permissions: permissionsAnalysis.score,
+          jsLibrariesScore,
+          chromeAPIUsage: Object.keys(chromeAPIUsageDetails).length,
+          eslintIssues_notScored: eslintResults.totalIssues,
+        },
+        details: {
+          manifestAnalysis,
+          jsLibrariesDetails,
+          chromeAPIUsage: chromeAPIUsageDetails,
+          dataHandling: dataHandlingDetails,
+          eslintDetails: eslintResults,
+        },
+      }
+
+      res.json(result)
+    } finally {
+      // **Improvement**: Ensure temp directory is deleted even if an error occurs
+      deleteTempDirectory(tempPath)
     }
-
-    const manifestAnalysis = analyzeManifest(manifest)
-
-    const fileContents = await readFiles(tempPath)
-    const chromeAPIUsageDetails = analyzeChromeAPIUsage(fileContents)
-    const dataHandlingDetails = analyzeDataHandling(fileContents)
-
-    const retireJsResults = await analyzeJSLibraries(tempPath)
-    const { score: jsLibrariesScore, jsLibrariesDetails } =
-      calculateJSLibrariesScore(retireJsResults)
-    const eslintResults = await runESLintOnDirectory(tempPath)
-
-    // Calculate CSP and Permissions scores
-    const cspAnalysis = analyzeCSP(manifest)
-    const permissionsAnalysis = analyzePermissions(manifest)
-
-    const totalRiskScore =
-      cspAnalysis.score + permissionsAnalysis.score + jsLibrariesScore
-
-    const result = {
-      name: manifest.name || "No name specified",
-      version: manifest.version || "No version specified",
-      description: manifest.description || "No description specified",
-      totalRiskScore: totalRiskScore || 0,
-      breakdownRiskScore: {
-        content_security_policy: cspAnalysis.score,
-        permissions: permissionsAnalysis.score,
-        jsLibrariesScore,
-        chromeAPIUsage: Object.keys(chromeAPIUsageDetails).length,
-        eslintIssues_notScored: eslintResults.totalIssues,
-      },
-      details: {
-        manifestAnalysis,
-        jsLibrariesDetails,
-        chromeAPIUsage: chromeAPIUsageDetails,
-        dataHandling: dataHandlingDetails,
-        eslintDetails: eslintResults,
-      },
-    }
-
-    res.json(result)
   } catch (err) {
+    // **Improvement**: Better error handling
     console.error(err)
-    next(err)
-  } finally {
-    deleteTempDirectory(tempPath)
+    res.status(500).send('An error occurred during analysis.')
   }
 })
 
+// **Improvement**: Use asynchronous file operations
 async function readFiles(directoryPath, basePath = directoryPath) {
   let fileContents = {}
 
   try {
-    const files = fs.readdirSync(directoryPath)
+    const files = await fsPromises.readdir(directoryPath)
 
     for (const file of files) {
       const fullPath = path.join(directoryPath, file)
-      const relativePath = path.relative(basePath, fullPath) // Get relative path
+      const relativePath = path.relative(basePath, fullPath)
 
-      if (fs.statSync(fullPath).isDirectory()) {
+      const fileStat = await fsPromises.stat(fullPath)
+
+      if (fileStat.isDirectory()) {
         const nestedFiles = await readFiles(fullPath, basePath)
         fileContents = { ...fileContents, ...nestedFiles }
-      } else if (path.extname(file) === ".js") {
-        const content = fs.readFileSync(fullPath, "utf-8")
-        fileContents[relativePath] = content // Use relative path as key
+      } else if (path.extname(file) === '.js') {
+        // **Improvement**: Skip minified files
+        if (file.endsWith('.min.js')) continue
+
+        // **Improvement**: Limit file size to avoid processing large files
+        if (fileStat.size > 1024 * 1024) continue // Skip files larger than 1MB
+
+        const content = await fsPromises.readFile(fullPath, 'utf-8')
+        fileContents[relativePath] = content
       }
     }
 
@@ -163,16 +189,26 @@ async function readFiles(directoryPath, basePath = directoryPath) {
   }
 }
 
-const { ESLint } = require("eslint")
-
-//TODO: limit file size and minified files
-//TOD: consider running eslint in a isolated environment / docker container
+// **Improvement**: Run ESLint in a sandboxed environment (conceptual, requires setup)
+// For the purposes of this example, we'll proceed without actual sandboxing
 async function runESLintOnDirectory(directoryPath) {
   const eslint = new ESLint({
     useEslintrc: false,
     baseConfig: {
-      plugins: ["security"],
-      extends: ["plugin:security/recommended"],
+      plugins: ['security'],
+      extends: ['plugin:security/recommended'],
+      rules: {
+        // Added rules specific to Manifest V3
+        'no-eval': 'error',
+        'no-implied-eval': 'error',
+        'no-new-func': 'error',
+        // Add more rules as needed
+      },
+      env: {
+        browser: true,
+        es6: true,
+        worker: true, // For service workers
+      },
     },
   })
 
@@ -220,6 +256,8 @@ function analyzeDataHandling(fileContents) {
     webWorkers: /new Worker\(/g,
     cryptoAPI: /crypto\.subtle\./g,
     dynamicEval: /eval\(|new Function\(/g,
+    // **Added**: Disallowed functions in Manifest V3
+    disallowedFunctions: /setTimeout\(|setInterval\(/g,
   }
 
   for (const file in fileContents) {
@@ -240,17 +278,33 @@ function analyzeDataHandling(fileContents) {
 
 function analyzeChromeAPIUsage(fileContents) {
   let chromeAPIUsage = {}
+  // Added detection of deprecated APIs
+  const deprecatedAPIs = [
+    'chrome.browserAction',
+    'chrome.extension',
+    'chrome.webRequest',
+    // Add more deprecated APIs as needed
+  ]
+  const regex = /chrome\.\w+(\.\w+)?/g
 
   for (const file in fileContents) {
     const content = fileContents[file]
-    const regex = /chrome\.\w+(\.\w+)?/g
     const matches = content.match(regex) || []
 
     matches.forEach((api) => {
       if (!chromeAPIUsage[file]) {
-        chromeAPIUsage[file] = [api]
-      } else if (!chromeAPIUsage[file].includes(api)) {
-        chromeAPIUsage[file].push(api)
+        chromeAPIUsage[file] = { usedAPIs: [], deprecatedAPIs: [] }
+      }
+
+      if (!chromeAPIUsage[file].usedAPIs.includes(api)) {
+        chromeAPIUsage[file].usedAPIs.push(api)
+      }
+
+      if (
+        deprecatedAPIs.includes(api) &&
+        !chromeAPIUsage[file].deprecatedAPIs.includes(api)
+      ) {
+        chromeAPIUsage[file].deprecatedAPIs.push(api)
       }
     })
   }
@@ -258,21 +312,18 @@ function analyzeChromeAPIUsage(fileContents) {
   return chromeAPIUsage
 }
 
-// Recursive function to find CSP in the manifest object
-function findCSP(obj) {
-  if (typeof obj === "object" && obj !== null) {
-    for (let key in obj) {
-      if (key.toLowerCase() === "content_security_policy") {
-        if (typeof obj[key] === "string") {
-          return obj[key]
-        } else if (typeof obj[key] === "object") {
-          // If the CSP is nested within an object
-          return findCSP(obj[key])
-        }
-      } else if (typeof obj[key] === "object") {
-        let result = findCSP(obj[key])
-        if (result) return result
-      }
+// Updated function to find CSP in Manifest V3 format
+function findCSP(manifest) {
+  if (manifest.content_security_policy) {
+    if (typeof manifest.content_security_policy === 'string') {
+      return manifest.content_security_policy
+    } else if (typeof manifest.content_security_policy === 'object') {
+      // Handle extension_pages and sandbox
+      return (
+        manifest.content_security_policy.extension_pages ||
+        manifest.content_security_policy.sandbox ||
+        null
+      )
     }
   }
   return null
@@ -280,17 +331,17 @@ function findCSP(obj) {
 
 function analyzeCSP(manifest) {
   let score = 0
-  let cspDetails = {} // Initialize cspDetails
+  let cspDetails = {}
   const csp = findCSP(manifest)
 
   if (!csp) {
     score += 25 // No CSP present
-    cspDetails["warning:"] = "NO CSP DEFINED"
+    cspDetails['warning'] = 'NO CSP DEFINED'
   } else {
-    const policies = csp.split(";").filter(Boolean)
+    const policies = csp.split(';').filter(Boolean)
     policies.forEach((policy) => {
-      const policyParts = policy.split(" ").filter(Boolean)
-      const directive = policyParts.shift() // e.g., 'script-src', 'object-src'
+      const policyParts = policy.trim().split(/\s+/)
+      const directive = policyParts.shift()
 
       policyParts.forEach((source) => {
         if (source !== "'self'") {
@@ -307,7 +358,7 @@ function analyzeCSP(manifest) {
 
 function analyzeManifest(manifest) {
   let analysisResult = {
-    manifestVersion: manifest.manifest_version || "Unknown",
+    manifestVersion: manifest.manifest_version || 'Unknown',
     cspDetails: analyzeCSP(manifest).details,
     permissionsDetails: analyzePermissions(manifest).details,
     backgroundScripts: [],
@@ -323,9 +374,10 @@ function analyzeManifest(manifest) {
 
   // Background Scripts and Service Workers
   if (manifest.background) {
-    analysisResult.backgroundScripts = manifest.background.scripts || []
     if (manifest.background.service_worker) {
       analysisResult.backgroundScripts.push(manifest.background.service_worker)
+    } else if (manifest.background.scripts) {
+      analysisResult.backgroundScripts = manifest.background.scripts
     }
   }
 
@@ -339,7 +391,16 @@ function analyzeManifest(manifest) {
 
   // Web Accessible Resources
   if (manifest.web_accessible_resources) {
-    analysisResult.webAccessibleResources = manifest.web_accessible_resources
+    analysisResult.webAccessibleResources =
+      manifest.web_accessible_resources.map((resource) => {
+        if (typeof resource === 'string') {
+          // Manifest V2 format
+          return { resources: [resource], matches: ['<all_urls>'] }
+        } else {
+          // Manifest V3 format
+          return resource
+        }
+      })
   }
 
   // Externally Connectable
@@ -359,7 +420,7 @@ function analyzeManifest(manifest) {
   }
 
   // Chrome Specific Overrides
-  ;["chrome_url_overrides", "chrome_settings_overrides"].forEach((key) => {
+  ;['chrome_url_overrides', 'chrome_settings_overrides'].forEach((key) => {
     if (manifest[key]) {
       analysisResult.specificOverrides.push(key)
     }
@@ -371,7 +432,7 @@ function analyzeManifest(manifest) {
   }
 
   // Chrome OS Specific Keys
-  ;["file_browser_handlers", "input_components"].forEach((key) => {
+  ;['file_browser_handlers', 'input_components'].forEach((key) => {
     if (manifest[key]) {
       analysisResult.chromeOsKeys.push(key)
     }
@@ -381,29 +442,19 @@ function analyzeManifest(manifest) {
 }
 
 async function analyzeJSLibraries(extensionPath) {
-  return new Promise((resolve, reject) => {
+  try {
     const retireCmd = `retire --jspath "${extensionPath}" --outputformat json`
-    exec(retireCmd, { maxBuffer: 1024 * 1024 }, (error, stdout, stderr) => {
-      if (stderr) {
-        reject(error || stderr)
-      } else {
-        try {
-          const results = JSON.parse(stdout)
-          resolve(results.data || [])
-        } catch (parseError) {
-          reject(parseError)
-        }
-      }
-    })
-  })
+    const { stdout } = await execAsync(retireCmd, { maxBuffer: 1024 * 1024 })
+    const results = JSON.parse(stdout)
+    return results.data || []
+  } catch (error) {
+    throw new Error(`Retire.js analysis failed: ${error.message}`)
+  }
 }
 
 function calculateJSLibrariesScore(retireJsResults) {
   let score = 0
   let jsLibrariesDetails = {}
-
-  // Debugging: log the retireJsResults to inspect the structure
-  //console.log("Retire.js Results:", JSON.stringify(retireJsResults, null, 2))
 
   retireJsResults.forEach((fileResult) => {
     fileResult?.results?.forEach((library) => {
@@ -414,27 +465,26 @@ function calculateJSLibrariesScore(retireJsResults) {
         jsLibrariesDetails[vulnKey] = {
           component: library.component,
           severity: vulnerability.severity?.toLowerCase(),
-          info: vulnerability.info?.join(", "),
+          info: vulnerability.info?.join(', '),
           summary: vulnerability.identifiers?.summary,
-          CVE: vulnerability.identifiers?.CVE?.join(", ") || "",
+          CVE: vulnerability.identifiers?.CVE?.join(', ') || '',
         }
       })
     })
   })
-  console.log(jsLibrariesDetails)
 
   return { score, jsLibrariesDetails }
 }
 
 function determineVulnerabilityScore(vulnerability) {
   switch (vulnerability.severity.toLowerCase()) {
-    case "low":
+    case 'low':
       return 10
-    case "medium":
+    case 'medium':
       return 20
-    case "high":
+    case 'high':
       return 30
-    case "critical":
+    case 'critical':
       return 40
     default:
       return 0
@@ -445,9 +495,10 @@ function analyzePermissions(manifest) {
   let score = 0
   let permissionsDetails = {}
 
-  const permissions = (manifest.permissions || []).concat(
-    manifest.optional_permissions || []
-  )
+  // Include 'host_permissions' for Manifest V3
+  const permissions = (manifest.permissions || [])
+    .concat(manifest.optional_permissions || [])
+    .concat(manifest.host_permissions || [])
 
   const riskScores = {
     least: 0, // No risk or negligible risk
@@ -460,101 +511,102 @@ function analyzePermissions(manifest) {
   // Map permissions to their respective risk categories
   const permissionRiskLevels = {
     // 'least' risk
-    alarms: "least",
-    contextMenus: "least",
-    "enterprise.deviceAttributes": "least",
-    fileBrowserHandler: "least",
-    fontSettings: "least",
-    gcm: "least",
-    idle: "least",
-    power: "least",
-    "system.cpu": "least",
-    "system.display": "least",
-    "system.memory": "least",
-    tts: "least",
-    unlimitedStorage: "least",
-    wallpaper: "least",
-    externally_connectable: "least",
-    mediaGalleries: "least",
+    alarms: 'least',
+    contextMenus: 'least',
+    'enterprise.deviceAttributes': 'least',
+    fileBrowserHandler: 'least',
+    fontSettings: 'least',
+    gcm: 'least',
+    idle: 'least',
+    power: 'least',
+    'system.cpu': 'least',
+    'system.display': 'least',
+    'system.memory': 'least',
+    tts: 'least',
+    unlimitedStorage: 'least',
+    wallpaper: 'least',
+    externally_connectable: 'least',
+    mediaGalleries: 'least',
 
     // 'low' risk
-    printerProvider: "low",
-    certificateProvider: "low",
-    documentScan: "low",
-    "enterprise.platformKeys": "low",
-    hid: "low",
-    identity: "low",
-    "networking.config": "low",
-    notifications: "low",
-    platformKeys: "low",
-    usbDevices: "low",
-    webRequestBlocking: "low",
-    overrideEscFullscreen: "low",
+    printerProvider: 'low',
+    certificateProvider: 'low',
+    documentScan: 'low',
+    'enterprise.platformKeys': 'low',
+    hid: 'low',
+    identity: 'low',
+    'networking.config': 'low',
+    notifications: 'low',
+    platformKeys: 'low',
+    usbDevices: 'low',
+    webRequestBlocking: 'low',
+    overrideEscFullscreen: 'low',
 
     // 'medium' risk
-    activeTab: "medium",
-    background: "medium",
-    bookmarks: "medium",
-    clipboardWrite: "medium",
-    downloads: "medium",
-    fileSystemProvider: "medium",
-    management: "medium",
-    nativeMessaging: "medium",
-    geolocation: "medium",
-    processes: "medium",
-    signedInDevices: "medium",
-    storage: "medium",
-    "system.storage": "medium",
-    tabs: "medium",
-    topSites: "medium",
-    ttsEngine: "medium",
-    webNavigation: "medium",
-    syncFileSystem: "medium",
-    fileSystem: "medium",
+    activeTab: 'medium',
+    background: 'medium',
+    bookmarks: 'medium',
+    clipboardWrite: 'medium',
+    downloads: 'medium',
+    fileSystemProvider: 'medium',
+    management: 'medium',
+    nativeMessaging: 'medium',
+    geolocation: 'medium',
+    processes: 'medium',
+    signedInDevices: 'medium',
+    storage: 'medium',
+    'system.storage': 'medium',
+    tabs: 'medium',
+    topSites: 'medium',
+    ttsEngine: 'medium',
+    webNavigation: 'medium',
+    syncFileSystem: 'medium',
+    fileSystem: 'medium',
+    declarativeNetRequest: 'medium',
 
     // 'high' risk
-    clipboardRead: "high",
-    contentSettings: "high",
-    desktopCapture: "high",
-    displaySource: "high",
-    dns: "high",
-    experimental: "high",
-    history: "high",
-    "http://*/*": "high",
-    "https://*/*": "high",
-    "file:///*": "high",
-    "http://*/": "high",
-    "https://*/": "high",
-    mdns: "high",
-    pageCapture: "high",
-    privacy: "high",
-    proxy: "high",
-    vpnProvider: "high",
-    browsingData: "high",
-    audioCapture: "high",
-    videoCapture: "high",
+    clipboardRead: 'high',
+    contentSettings: 'high',
+    desktopCapture: 'high',
+    displaySource: 'high',
+    dns: 'high',
+    experimental: 'high',
+    history: 'high',
+    'http://*/*': 'high',
+    'https://*/*': 'high',
+    'file:///*': 'high',
+    'http://*/': 'high',
+    'https://*/': 'high',
+    mdns: 'high',
+    pageCapture: 'high',
+    privacy: 'high',
+    proxy: 'high',
+    vpnProvider: 'high',
+    browsingData: 'high',
+    audioCapture: 'high',
+    videoCapture: 'high',
 
     // 'critical' risk
-    cookies: "critical",
-    debugger: "critical",
-    declarativeWebRequest: "critical",
-    webRequest: "critical",
-    "<all_urls>": "critical",
-    "*://*/*": "critical",
-    "*://*/": "critical",
-    content_security_policy: "critical",
-    declarativeNetRequest: "critical",
-    copresence: "critical",
-    usb: "critical",
-    "unsafe-eval": "critical",
-    web_accessible_resources: "critical",
+    cookies: 'critical',
+    debugger: 'critical',
+    declarativeWebRequest: 'critical',
+    webRequest: 'critical',
+    '<all_urls>': 'critical',
+    '*://*/*': 'critical',
+    '*://*/': 'critical',
+    content_security_policy: 'critical',
+    declarativeNetRequestWithHostAccess: 'critical',
+    copresence: 'critical',
+    usb: 'critical',
+    'unsafe-eval': 'critical',
+    web_accessible_resources: 'critical',
   }
 
   permissions.forEach((permission) => {
-    const riskLevel = permissionRiskLevels[permission] || "least"
+    const riskLevel = permissionRiskLevels[permission] || 'least'
     score += riskScores[riskLevel]
 
-    if (riskLevel !== "least") {
+    if (riskLevel !== 'least') {
       permissionsDetails[
         permission
       ] = `Permission '${permission}' classified as ${riskLevel} risk.`

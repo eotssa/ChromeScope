@@ -1,38 +1,36 @@
-import React from 'react'
-import { useState } from 'react'
-import { useEffect } from 'react'
-
+import React, { useState } from 'react'
 import axios from 'axios'
 import '../index.css'
+import ReactJson from 'react-json-view'
 
 const features = [
   {
-    name: 'Manifest Analysis',
+    name: 'Manifest V3 Analysis',
     description:
-      'Evaluates extension metadata, Content Security Policy (CSP), and permissions for security issues.',
+      'Evaluates Manifest V3 extensions, including service workers, background scripts, and updated permissions.',
   },
   {
     name: 'JavaScript Analysis',
-    description: 'Conducts security-focused code quality assessment',
+    description: 'Conducts security-focused code quality assessment.',
   },
   {
     name: 'Chrome API and Data Handling',
     description:
-      'Scrutinizes Chrome API usage and data handling practices and policies for security issues.',
+      'Scrutinizes Chrome API usage and data handling practices for security issues.',
   },
   {
     name: 'Vulnerability Analysis',
-    description: 'Identifies known vulnerabilities in JavaScript libraries',
+    description: 'Identifies known vulnerabilities in JavaScript libraries.',
   },
   {
     name: 'JSON Response',
     description:
-      'Comprehensive report detailing the total risk score and specific assessments to empower your needs.',
+      'Provides a comprehensive report detailing the total risk score and specific assessments.',
   },
   {
     name: 'Future Plans',
     description:
-      'API call integration, network analysis, automated CWS upload and more!',
+      'API integration, network analysis, automated Chrome Web Store uploads, and more!',
   },
 ]
 
@@ -74,73 +72,56 @@ const Main = () => {
   const [file, setFile] = useState(null)
   const [analysisResult, setAnalysisResult] = useState(null)
   const [loading, setLoading] = useState(false)
-  const [searchErrorMessage, setSearchErrorMessage] = useState(null)
-  const [uploadErrorMessage, setUploadErrorMessage] = useState(null)
-
+  const [errorMessage, setErrorMessage] = useState(null)
   const [searchInput, setSearchInput] = useState('')
-  const [jsonData, setJsonData] = useState('')
-
-  useEffect(() => {
-    setJsonData(placeholder)
-  }, []) // Re-run highlighting when jsonData changes
+  const [jsonData, setJsonData] = useState(placeholder)
 
   const handleSearch = async (e) => {
     e.preventDefault()
-    if (!searchInput.trim()) {
-      setSearchErrorMessage('Please enter a valid extension URL.')
+    const trimmedInput = searchInput.trim()
+    if (!trimmedInput) {
+      setErrorMessage('Please enter a valid extension URL or ID.')
       return
     }
 
     try {
       setLoading(true)
+      setErrorMessage(null)
       const response = await axios.post('https://chromescope.net/link', {
-        extensionUrl: searchInput.trim(),
+        extensionUrl: trimmedInput,
       })
 
       setJsonData(response.data)
-      setSearchErrorMessage(null)
     } catch (error) {
       console.error('Error in search:', error)
-      setSearchErrorMessage('Error fetching data. Ensure the URL is correct.')
+      setErrorMessage('Error fetching data. Ensure the URL or ID is correct.')
     } finally {
       setLoading(false)
     }
   }
 
-  // Search Component -- useless
-  const handleFileChange = async (e) => {
+  const handleFileChange = (e) => {
     const selectedFile = e.target.files[0]
     if (selectedFile) {
-      setFile(selectedFile) // Assuming you have a setter for setting file state
-
-      const formData = new FormData()
-      formData.append('extensionFile', selectedFile)
-
-      try {
-        const response = await axios.post(
-          'https://chromescope.net/upload',
-          formData,
-          {
-            headers: {
-              'Content-Type': 'multipart/form-data',
-            },
-          }
-        )
-
-        setJsonData(response.data) // Assuming you have a setter for setting JSON data state
-      } catch (error) {
-        console.error('Error in file upload:', error)
+      // Validate file type
+      const validExtensions = ['.crx', '.zip']
+      const fileExtension = selectedFile.name.slice(
+        selectedFile.name.lastIndexOf('.')
+      )
+      if (!validExtensions.includes(fileExtension.toLowerCase())) {
+        setErrorMessage('Please upload a valid .crx or .zip file.')
+        setFile(null)
+        return
       }
+      setFile(selectedFile)
+      setErrorMessage(null)
     }
   }
 
-  // Upload Component
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!file) {
-      setUploadErrorMessage(
-        'Please select a Chrome extension zip file to upload.'
-      )
+      setErrorMessage('Please select a Chrome extension file to upload.')
       return
     }
 
@@ -149,8 +130,9 @@ const Main = () => {
 
     try {
       setLoading(true)
+      setErrorMessage(null)
       const response = await axios.post(
-        `https://chromescope.net/upload`,
+        'https://chromescope.net/upload',
         formData,
         {
           headers: {
@@ -159,42 +141,36 @@ const Main = () => {
         }
       )
 
-      console.log(response.data)
       setAnalysisResult(response.data)
-      setUploadErrorMessage(null)
     } catch (error) {
       console.error('Error uploading file:', error)
-      setUploadErrorMessage(
-        'Error analyzing the file. Please ensure it is a valid zip or crx file.'
+      setErrorMessage(
+        'Error analyzing the file. Please ensure it is a valid .crx or .zip file.'
       )
     } finally {
       setLoading(false)
     }
   }
 
-  // For buttons at bottom
   const handleButtonClick = (url) => {
     setSearchInput(url)
-    // Programmatically submit the form
-    // Assuming the form has a unique ID 'search-form'
-    // document
-    //   .getElementById("search-form")
-    //   .dispatchEvent(new Event("submit", { cancelable: true }))
+    setErrorMessage(null)
   }
 
   return (
     <>
+      {/* Search Section */}
       <section className="container mx-auto px-4 pt-24 lg:px-44">
         <div className="mx-auto flex max-w-7xl flex-wrap justify-center">
           <div className="mb-16 mt-12 w-full px-4 lg:w-5/12 lg:px-8 xl:px-12">
             <div className="text-left">
               <h1 className="text-5xl font-bold">
-                Automate Extension Risk Assessment
+                Automate Extension Risk Assessment for Manifest V3
               </h1>
               <p className="py-6 text-lg font-medium">
-                Make informed decisions about the Chrome extensions you use.
-                Enter the extension URL or upload the extension file to get a
-                detailed risk assessment report.
+                Conduct security assessments of Chrome exensions before
+                deploying to enterprise environments. Chromescope has been
+                updated for V3!
               </p>
               <a
                 href="mailto:wilsonwu97@outlook.com"
@@ -215,13 +191,13 @@ const Main = () => {
                   id="search-form"
                   className="space-y-4"
                 >
-                  {/* Search input */}
+                  {/* Search Input */}
                   <div className="form-control">
                     <div className="relative">
                       <input
                         type="text"
                         placeholder="Enter Chrome Extension URL or Extension ID"
-                        className="input-neutral input input-bordered w-full pr-16"
+                        className="input input-bordered w-full pr-16"
                         value={searchInput}
                         onChange={(e) => setSearchInput(e.target.value)}
                       />
@@ -238,13 +214,10 @@ const Main = () => {
                       </button>
                     </div>
                   </div>
-                  {/* Display search error message */}
-                  {searchErrorMessage && (
-                    <p className="text-red-500 text-center">
-                      {searchErrorMessage}
-                    </p>
+                  {/* Error Message */}
+                  {errorMessage && (
+                    <p className="text-red-500 text-center">{errorMessage}</p>
                   )}
-
                   {/* JSON Data Display */}
                   <div className="form-control">
                     {jsonData && (
@@ -255,12 +228,11 @@ const Main = () => {
                       </div>
                     )}
                   </div>
-
-                  {/* Button group */}
+                  {/* Button Group */}
                   <div className="flex flex-wrap justify-center gap-2 mt-4">
                     <button
                       type="button"
-                      className="btn btn-outline text-md rounded-none  w-full sm:w-auto px-4"
+                      className="btn btn-outline text-md rounded-none w-full sm:w-auto px-4"
                       onClick={() =>
                         handleButtonClick(
                           'https://chromewebstore.google.com/detail/remindoro/njmniggbfobokemdjebnhmbldimkofkc'
@@ -298,7 +270,8 @@ const Main = () => {
           </div>
         </div>
       </section>
-      {/* ------------------------------------------------------------------------------------------------------- */}
+
+      {/* Upload Section */}
       <section className="container mx-auto px-4 pt-32 lg:px-44">
         <div className="mx-auto flex max-w-7xl flex-wrap justify-center">
           <div className="mb-16 mt-5 w-full px-4 lg:w-5/12 lg:px-8 xl:px-12">
@@ -308,7 +281,7 @@ const Main = () => {
               </h1>
               <p className="py-6 text-lg font-medium">
                 Extensions uploaded for analysis are deleted and not stored on
-                our servers.
+                our servers. (View the source code for yourself)
               </p>
               <a
                 href="https://github.com/eotssa/ChromeScope"
@@ -318,7 +291,7 @@ const Main = () => {
                 <button className="btn bg-sky-500 text-neutral-200 text-lg rounded-full hover:bg-sky-600 px-4">
                   View Source Code
                 </button>
-              </a>{' '}
+              </a>
             </div>
           </div>
           <div className="w-full px-4 py-6 lg:w-7/12 lg:px-8 xl:px-12">
@@ -329,18 +302,19 @@ const Main = () => {
                     <div className="mx-auto pt-3">
                       <input
                         type="file"
+                        accept=".crx,.zip"
                         onChange={handleFileChange}
                         className="file-input file-input-bordered w-full max-w-xs"
                       />
                     </div>
-                    {uploadErrorMessage && (
-                      <p className="text-red-500 mt-4 text-center	">
-                        {uploadErrorMessage}
+                    {errorMessage && (
+                      <p className="text-red-500 mt-4 text-center">
+                        {errorMessage}
                       </p>
                     )}
                     <button
                       type="submit"
-                      className="btn btn-neutral mt-4 mx-auto max-w "
+                      className="btn btn-neutral mt-4 mx-auto"
                       disabled={loading}
                     >
                       {loading ? (
@@ -364,6 +338,8 @@ const Main = () => {
           </div>
         </div>
       </section>
+
+      {/* Article Cards Section */}
       <section className="container mx-auto px-4 pt-32 lg:px-44">
         <div className="bg-white">
           <div className="mx-auto grid max-w-2xl grid-cols-1 items-center gap-x-8 gap-y-16 px-4 py-24 sm:px-6 sm:py-32 lg:max-w-7xl lg:grid-cols-2 lg:px-8">
@@ -373,8 +349,8 @@ const Main = () => {
               </h2>
               <p className="mt-4 text-gray-500">
                 This tool specializes in the automated analysis of Chrome
-                extensions, delivering insights into security, permissions, and
-                code quality.
+                extensions, with full support for Manifest V3, delivering
+                insights into security, permissions, and code quality.
               </p>
 
               <dl className="mt-16 grid grid-cols-1 gap-x-6 gap-y-10 sm:grid-cols-2 sm:gap-y-16 lg:gap-x-8">
@@ -394,34 +370,27 @@ const Main = () => {
               </dl>
             </div>
             <div className="justify-self-center grid grid-flow-row auto-rows-max">
-              {/*CARD ONE*/}
-              <div className=" max-w-md bg-white border border-gray-200 rounded-lg shadow dark:bg-gray-800 dark:border-gray-700 my-3">
-                <a
-                  href="https://www.darkreading.com/application-security/google-chrome-store-review-process-data-stealer"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <img className="rounded-t-lg" alt="" />
-                </a>
+              {/* CARD ONE */}
+              <div className="max-w-md bg-white border border-gray-200 rounded-lg shadow my-3">
                 <div className="p-5">
                   <a
                     href="https://www.darkreading.com/application-security/google-chrome-store-review-process-data-stealer"
                     target="_blank"
                     rel="noopener noreferrer"
                   >
-                    <h5 className="mb-2 text-2xl font-bold tracking-tight text-gray-900 dark:text-white">
+                    <h5 className="mb-2 text-2xl font-bold tracking-tight text-gray-900">
                       Google's Souped-up Chrome Store Review Process Foiled by
                       Data-Stealer
                     </h5>
                   </a>
-                  <p className="mb-3 font-normal text-gray-700 dark:text-gray-400">
-                    {`"Extensions Have Too Much Access to Web Functions"`}
+                  <p className="mb-3 font-normal text-gray-700">
+                    "Extensions Have Too Much Access to Web Functions"
                   </p>
                   <a
                     href="https://www.darkreading.com/application-security/google-chrome-store-review-process-data-stealer"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center px-3 py-2 text-sm font-medium text-center text-white bg-blue-700 rounded-lg hover:bg-blue-800 focus:ring-4 focus:outline-none focus:ring-blue-300 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
+                    className="inline-flex items-center px-3 py-2 text-sm font-medium text-center text-white bg-blue-700 rounded-lg hover:bg-blue-800"
                   >
                     Read more
                     <svg
@@ -442,36 +411,27 @@ const Main = () => {
                   </a>
                 </div>
               </div>
-              {/* CARD ONE*/}
-              {/*CARD TWO*/}
-              <div className=" max-w-md bg-white border border-gray-200 rounded-lg shadow dark:bg-gray-800 dark:border-gray-700 my-3">
-                <a
-                  href="https://cointelegraph.com/news/22-more-crypto-stealing-google-chrome-extensions-discovered"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <img className="rounded-t-lg" src="" alt="" />
-                </a>
+              {/* CARD TWO */}
+              <div className="max-w-md bg-white border border-gray-200 rounded-lg shadow my-3">
                 <div className="p-5">
                   <a
                     href="https://cointelegraph.com/news/22-more-crypto-stealing-google-chrome-extensions-discovered"
                     target="_blank"
                     rel="noopener noreferrer"
                   >
-                    {' '}
-                    <h5 className="mb-2 text-2xl font-bold tracking-tight text-gray-900 dark:text-white">
+                    <h5 className="mb-2 text-2xl font-bold tracking-tight text-gray-900">
                       22 More Crypto-Stealing Google Chrome Extensions
                       Discovered
                     </h5>
                   </a>
-                  <p className="mb-3 font-normal text-gray-700 dark:text-gray-400">
+                  <p className="mb-3 font-normal text-gray-700">
                     "Google Chrome extensions are often used for phishing"
                   </p>
                   <a
                     href="https://cointelegraph.com/news/22-more-crypto-stealing-google-chrome-extensions-discovered"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center px-3 py-2 text-sm font-medium text-center text-white bg-blue-700 rounded-lg hover:bg-blue-800 focus:ring-4 focus:outline-none focus:ring-blue-300 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
+                    className="inline-flex items-center px-3 py-2 text-sm font-medium text-center text-white bg-blue-700 rounded-lg hover:bg-blue-800"
                   >
                     Read more
                     <svg
@@ -492,36 +452,29 @@ const Main = () => {
                   </a>
                 </div>
               </div>
-              {/* CARD ONE*/}
-              {/*CARD ONE*/}
-              <div className=" max-w-md bg-white border border-gray-200 rounded-lg shadow dark:bg-gray-800 dark:border-gray-700 my-3">
-                <a
-                  href="https://www.securityweek.com/password-stealing-chrome-extension-demonstrates-new-vulnerabilities/"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <img className="rounded-t-lg" src="" alt="" />
-                </a>
+              {/* CARD THREE */}
+              <div className="max-w-md bg-white border border-gray-200 rounded-lg shadow my-3">
                 <div className="p-5">
                   <a
                     href="https://www.securityweek.com/password-stealing-chrome-extension-demonstrates-new-vulnerabilities/"
                     target="_blank"
                     rel="noopener noreferrer"
                   >
-                    <h5 className="mb-2 text-2xl font-bold tracking-tight text-gray-900 dark:text-white">
+                    <h5 className="mb-2 text-2xl font-bold tracking-tight text-gray-900">
                       Password-Stealing Chrome Extension Demonstrates New
                       Vulnerabilities
                     </h5>
                   </a>
-                  <p className="mb-3 font-normal text-gray-700 dark:text-gray-400">
-                    (12.5% of the total) “have the necessary permissions to
-                    extract sensitive information on all web pages.
+                  <p className="mb-3 font-normal text-gray-700">
+                    "12.5% of the total extensions have the necessary
+                    permissions to extract sensitive information on all web
+                    pages."
                   </p>
                   <a
                     href="https://www.securityweek.com/password-stealing-chrome-extension-demonstrates-new-vulnerabilities/"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center px-3 py-2 text-sm font-medium text-center text-white bg-blue-700 rounded-lg hover:bg-blue-800 focus:ring-4 focus:outline-none focus:ring-blue-300 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
+                    className="inline-flex items-center px-3 py-2 text-sm font-medium text-center text-white bg-blue-700 rounded-lg hover:bg-blue-800"
                   >
                     Read more
                     <svg
@@ -542,10 +495,8 @@ const Main = () => {
                   </a>
                 </div>
               </div>
-              {/* CARD ONE*/}
+              {/* End of Article Cards */}
             </div>
-
-            {/*HERE*/}
           </div>
         </div>
       </section>

@@ -1,4 +1,4 @@
-import React from "react"
+import React from 'react'
 
 const Docs = () => {
   return (
@@ -9,12 +9,10 @@ const Docs = () => {
             <article className="prose pb-64 ">
               <h1 className="text-center ">Getting Started with Chromescope</h1>
               <p className="">
-                Integrate ChromeScope into your applications or directly
-                interact with our API by following the provided guidelines.
-                ChromeScope is engineered to offer insights that go beyond the
-                automated analysis of the Chrome Web Store. Our aim is to create
-                an environment that empowers and directs your analysis, aligning
-                it precisely with your specific risk tolerance requirements.
+                Chromescope integrates a wide array of analyses to provide
+                detailed insights on version compliance, permission evaluations,
+                dynamic code executions, unsafe inline code, API usage
+                detections, and data handling practices.
               </p>
 
               <p>
