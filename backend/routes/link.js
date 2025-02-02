@@ -1,7 +1,7 @@
-// Import necessary modules
 const express = require('express')
 const router = express.Router()
 const axios = require('axios')
+const AdmZip = require('adm-zip')
 const multer = require('multer')
 const { Readable } = require('stream')
 const fs = require('fs')
@@ -13,12 +13,10 @@ const {
 const { exec } = require('child_process') // Used to run retire.js as a command line tool
 const { ESLint } = require('eslint')
 
-// **Added**: Use async versions of fs methods
 const fsPromises = fs.promises
 const util = require('util')
 const execAsync = util.promisify(exec)
 
-// **Added**: Configuration variables
 const MAX_FILE_SIZE = 50 * 1024 * 1024 // 50 MB limit
 const ALLOWED_HOSTS = [
   'chrome.google.com',
@@ -34,24 +32,24 @@ const upload = multer({
   limits: { fileSize: MAX_FILE_SIZE },
 })
 
-// **Improvement**: Updated the function to build the download link
 function buildDownloadLink(extensionId) {
-  const baseUrl =
-    'https://clients2.google.com/service/update2/crx?response=redirect&prodversion=49.0&acceptformat=crx3&x=id%3D***%26installsource%3Dondemand%26uc'
-  return baseUrl.replace('***', extensionId)
+  return `https://clients2.google.com/service/update2/crx?response=redirect&prodversion=49.0&x=id%3D${extensionId}%26installsource%3Dondemand%26uc`
 }
 
 // Function to parse CRX files
 function parseCRX(buffer) {
-  const magic = buffer.readUInt32LE(0)
+  console.log('CRX Buffer Length:', buffer.length) // Log buffer size
+  console.log('CRX Magic Number:', buffer.readUInt32LE(0).toString(16)) // Log magic number
 
+  const magic = buffer.readUInt32LE(0)
   if (magic !== 0x34327243) {
     throw new Error('Not a valid CRX file')
   }
 
   const version = buffer.readUInt32LE(4)
-  let zipStart
+  console.log('CRX Version:', version) // Log CRX version
 
+  let zipStart
   if (version === 2) {
     const publicKeyLength = buffer.readUInt32LE(8)
     const signatureLength = buffer.readUInt32LE(12)
@@ -63,6 +61,7 @@ function parseCRX(buffer) {
     throw new Error('Unsupported CRX version')
   }
 
+  console.log('Zip Start Position:', zipStart) // Log where the ZIP data starts
   return buffer.slice(zipStart)
 }
 
@@ -73,29 +72,24 @@ function bufferToStream(buffer) {
   return stream
 }
 
-// **Improvement**: Updated the function to extract extension ID
 function getExtensionIdFromLink(urlOrId) {
+  // Allow both chromewebstore and legacy chrome URLs, capture 32-character alphanumeric ID
   const urlPattern =
-    /^https?:\/\/(?:chrome\.google\.com\/webstore\/detail|chromewebstore\.google\.com\/(?:webstore\/)?detail)\/[a-zA-Z0-9\-_]+\/([a-zA-Z0-9]+)$/
-  const idPattern = /^[a-zA-Z0-9]{32}$/ // Chrome extension IDs are exactly 32 alphanumeric characters
+    /^https?:\/\/(?:chromewebstore\.google\.com\/detail\/[\w-]+\/|chrome\.google\.com\/webstore\/detail\/[\w-]+\/)([a-zA-Z0-9]{32})$/
+  const idPattern = /^[a-zA-Z0-9]{32}$/
 
+  // Try to match Web Store URL
   const urlMatch = urlOrId.match(urlPattern)
-  if (urlMatch) {
-    return urlMatch[1] // Return the ID from the URL
-  }
+  if (urlMatch?.[1]) return urlMatch[1] // Return captured ID
 
-  const idMatch = urlOrId.match(idPattern)
-  if (idMatch) {
-    return urlOrId // Return the ID directly
-  }
+  // Try to match direct ID
+  if (idPattern.test(urlOrId)) return urlOrId
 
-  throw new Error('Invalid or disallowed URL or ID')
+  throw new Error(`Invalid extension URL/ID format: ${urlOrId}`)
 }
 
-// **Improvement**: Wrapped route handler in async error handling middleware
-router.post('/', upload.none(), async (req, res) => {
+router.post('/', upload.single('extensionUrl'), async (req, res) => {
   try {
-    // Increase the timeout for this route
     req.setTimeout(TIMEOUT_DURATION)
 
     let tempPath = createTempDirectory()
@@ -116,28 +110,65 @@ router.post('/', upload.none(), async (req, res) => {
       try {
         const response = await axios.get(downloadLink, {
           responseType: 'arraybuffer',
-          maxContentLength: MAX_FILE_SIZE,
+          headers: {
+            'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            Referer: 'https://chrome.google.com/',
+          },
         })
+
+        console.log('Response Status:', response.status) // Log HTTP status
+        console.log('Response Headers:', response.headers) // Log response headers
+        console.log('Response Data Length:', response.data?.length || 0) // Log data length
+
         crxBuffer = Buffer.from(response.data)
+
+        // Validate CRX buffer
+        if (crxBuffer.length === 0) {
+          throw new Error('Downloaded file is empty')
+        }
       } catch (axiosError) {
-        throw new Error('Failed to download the extension')
+        console.error('Axios Error:', {
+          message: axiosError.message,
+          status: axiosError.response?.status,
+          url: axiosError.config?.url,
+          headers: axiosError.response?.headers,
+        })
+        throw new Error(
+          `Failed to download extension (HTTP ${axiosError.response?.status})`
+        )
       }
 
       let zipBuffer
       try {
         zipBuffer = parseCRX(crxBuffer)
+        const zip = new AdmZip(zipBuffer)
+
+        // Validate ZIP contents
+        if (zip.getEntries().length === 0) {
+          throw new Error('CRX file contains empty/invalid ZIP')
+        }
+
+        zip.extractAllTo(tempPath, true)
       } catch (crxError) {
-        throw new Error('Failed to parse the CRX file')
+        throw new Error(`CRX processing failed: ${crxError.message}`)
       }
 
-      const zip = new admZip(zipBuffer)
-      zip.extractAllTo(tempPath, true)
-
-      let manifest
+      let manifestContent
       try {
-        manifest = JSON.parse(zip.readAsText('manifest.json'))
-      } catch (jsonError) {
-        throw new Error('Manifest JSON parsing failed')
+        // First try root manifest
+        manifestContent = zip.readAsText('manifest.json')
+      } catch {
+        // Fallback: Search for manifest in other locations
+        const entries = zip.getEntries()
+        const manifestEntry = entries.find((e) =>
+          e.name.endsWith('manifest.json')
+        )
+        if (manifestEntry) {
+          manifestContent = manifestEntry.getData().toString()
+        } else {
+          throw new Error('No manifest.json found in extension')
+        }
       }
 
       const manifestAnalysis = analyzeManifest(manifest)
@@ -181,17 +212,14 @@ router.post('/', upload.none(), async (req, res) => {
 
       res.json(result)
     } finally {
-      // **Improvement**: Ensure temp directory is deleted even if an error occurs
       deleteTempDirectory(tempPath)
     }
   } catch (err) {
-    // **Improvement**: Better error handling
     console.error(err)
     res.status(500).send('An error occurred during analysis.')
   }
 })
 
-// **Improvement**: Use asynchronous file operations
 async function readFiles(directoryPath, basePath = directoryPath) {
   let fileContents = {}
 
@@ -223,7 +251,6 @@ async function readFiles(directoryPath, basePath = directoryPath) {
   }
 }
 
-// **Improvement**: Run ESLint with security rules
 async function runESLintOnDirectory(directoryPath) {
   const eslint = new ESLint({
     useEslintrc: false,
@@ -310,12 +337,10 @@ function analyzeDataHandling(fileContents) {
 
 function analyzeChromeAPIUsage(fileContents) {
   let chromeAPIUsage = {}
-  // **Added**: Detection of deprecated APIs
   const deprecatedAPIs = [
     'chrome.browserAction',
     'chrome.extension',
     'chrome.webRequest',
-    // Add more deprecated APIs as needed
   ]
   const regex = /chrome\.\w+(\.\w+)?/g
 
@@ -424,7 +449,6 @@ function analyzeManifest(manifest) {
 
   // Web Accessible Resources
   if (manifest.web_accessible_resources) {
-    // **Changed**: Adjusted to handle Manifest V3 structure
     analysisResult.webAccessibleResources =
       manifest.web_accessible_resources.map((resource) => {
         if (typeof resource === 'string') {
@@ -641,9 +665,8 @@ function analyzePermissions(manifest) {
     score += riskScores[riskLevel]
 
     if (riskLevel !== 'least') {
-      permissionsDetails[
-        permission
-      ] = `Permission '${permission}' classified as ${riskLevel} risk.`
+      permissionsDetails[permission] =
+        `Permission '${permission}' classified as ${riskLevel} risk.`
     }
   })
 
