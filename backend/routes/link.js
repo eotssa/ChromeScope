@@ -32,14 +32,68 @@ const upload = multer({
   limits: { fileSize: MAX_FILE_SIZE },
 })
 
-function buildDownloadLink(extensionId) {
-  return `https://clients2.google.com/service/update2/crx?response=redirect&prodversion=49.0&x=id%3D${extensionId}%26installsource%3Dondemand%26uc`
+// ----- TESTING #1: get_crx_url (inspired by Rob Wu's code) -----
+
+// Returns minimal platform info. Adjust as needed.
+function getPlatformInfo() {
+  // In a real environment, you might detect process.platform etc.
+  return {
+    os: 'Windows',
+    arch: 'x86-64',
+    nacl_arch: 'x86-64',
+  }
 }
+
+// Extracts the 32-character extension ID from a full URL or a raw ID.
+function get_extensionID(urlOrId) {
+  const urlPattern =
+    /^https?:\/\/(?:chromewebstore\.google\.com\/detail\/[\w-]+\/|chrome\.google\.com\/webstore\/detail\/[\w-]+\/)([a-zA-Z0-9]{32})$/
+  const idPattern = /^[a-zA-Z0-9]{32}$/
+  const urlMatch = urlOrId.match(urlPattern)
+  if (urlMatch?.[1]) return urlMatch[1]
+  if (idPattern.test(urlOrId)) return urlOrId
+  throw new Error(`Invalid extension URL/ID format: ${urlOrId}`)
+}
+
+// Builds the CRX download URL using dynamic parameters.
+function get_crx_url(extensionUrlOrId) {
+  const extensionID = get_extensionID(extensionUrlOrId)
+  if (!/^[a-z]{32}$/.test(extensionID)) {
+    throw new Error('Invalid extension ID format')
+  }
+
+  const platformInfo = getPlatformInfo()
+
+  // Use a modern Chrome user agent string.
+  const userAgent =
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+  const cr_version = /Chrome\/((\d+)\.0\.(\d+)\.\d+)/.exec(userAgent)
+  let product_version = '9999.0.9999.0'
+  if (cr_version && +cr_version[2] >= 88) {
+    product_version = cr_version[1]
+  }
+  const product_id = 'chromecrx'
+  const product_channel = 'unknown'
+
+  let url = 'https://clients2.google.com/service/update2/crx?response=redirect'
+  url += '&os=' + platformInfo.os
+  url += '&arch=' + platformInfo.arch
+  url += '&os_arch=' + platformInfo.arch // For consistency.
+  url += '&nacl_arch=' + platformInfo.nacl_arch
+  url += '&prod=' + product_id
+  url += '&prodchannel=' + product_channel
+  url += '&prodversion=' + product_version
+  url += '&acceptformat=crx2,crx3'
+  url += '&x=id%3D' + extensionID + '%26uc'
+  return url
+}
+
+// ----- END TESTING #1 -----
 
 // Function to parse CRX files
 function parseCRX(buffer) {
-  console.log('CRX Buffer Length:', buffer.length) // Log buffer size
-  console.log('CRX Magic Number:', buffer.readUInt32LE(0).toString(16)) // Log magic number
+  console.log('CRX Buffer Length:', buffer.length)
+  console.log('CRX Magic Number:', buffer.readUInt32LE(0).toString(16))
 
   const magic = buffer.readUInt32LE(0)
   if (magic !== 0x34327243) {
@@ -47,7 +101,7 @@ function parseCRX(buffer) {
   }
 
   const version = buffer.readUInt32LE(4)
-  console.log('CRX Version:', version) // Log CRX version
+  console.log('CRX Version:', version)
 
   let zipStart
   if (version === 2) {
@@ -61,37 +115,30 @@ function parseCRX(buffer) {
     throw new Error('Unsupported CRX version')
   }
 
-  console.log('Zip Start Position:', zipStart) // Log where the ZIP data starts
+  console.log('Zip Start Position:', zipStart)
   return buffer.slice(zipStart)
 }
 
 function bufferToStream(buffer) {
   const stream = new Readable()
   stream.push(buffer)
-  stream.push(null) // Indicates the end of the stream
+  stream.push(null)
   return stream
 }
 
 function getExtensionIdFromLink(urlOrId) {
-  // Allow both chromewebstore and legacy chrome URLs, capture 32-character alphanumeric ID
   const urlPattern =
     /^https?:\/\/(?:chromewebstore\.google\.com\/detail\/[\w-]+\/|chrome\.google\.com\/webstore\/detail\/[\w-]+\/)([a-zA-Z0-9]{32})$/
   const idPattern = /^[a-zA-Z0-9]{32}$/
-
-  // Try to match Web Store URL
   const urlMatch = urlOrId.match(urlPattern)
-  if (urlMatch?.[1]) return urlMatch[1] // Return captured ID
-
-  // Try to match direct ID
+  if (urlMatch?.[1]) return urlMatch[1]
   if (idPattern.test(urlOrId)) return urlOrId
-
   throw new Error(`Invalid extension URL/ID format: ${urlOrId}`)
 }
 
 router.post('/', upload.single('extensionUrl'), async (req, res) => {
   try {
     req.setTimeout(TIMEOUT_DURATION)
-
     let tempPath = createTempDirectory()
 
     try {
@@ -100,12 +147,16 @@ router.post('/', upload.single('extensionUrl'), async (req, res) => {
         throw new Error('Extension URL or ID is required')
       }
 
+      // Validate extension URL/ID.
       const extensionId = getExtensionIdFromLink(extensionUrl)
       if (!extensionId) {
         throw new Error('Invalid or disallowed extension URL or ID')
       }
 
-      const downloadLink = buildDownloadLink(extensionId)
+      // FIX: Use the proper variable (extensionUrl) instead of undefined extensionUrlOrId.
+      const downloadLink = get_crx_url(extensionUrl)
+      // Alternatively, you can also call: const downloadLink = get_crx_url(extensionId)
+
       let crxBuffer
       try {
         const response = await axios.get(downloadLink, {
@@ -117,13 +168,12 @@ router.post('/', upload.single('extensionUrl'), async (req, res) => {
           },
         })
 
-        console.log('Response Status:', response.status) // Log HTTP status
-        console.log('Response Headers:', response.headers) // Log response headers
-        console.log('Response Data Length:', response.data?.length || 0) // Log data length
+        console.log('Response Status:', response.status)
+        console.log('Response Headers:', response.headers)
+        console.log('Response Data Length:', response.data?.length || 0)
 
         crxBuffer = Buffer.from(response.data)
 
-        // Validate CRX buffer
         if (crxBuffer.length === 0) {
           throw new Error('Downloaded file is empty')
         }
@@ -139,10 +189,10 @@ router.post('/', upload.single('extensionUrl'), async (req, res) => {
         )
       }
 
-      let zipBuffer
+      let zipBuffer, zip // Declare zip in the outer scope
       try {
         zipBuffer = parseCRX(crxBuffer)
-        const zip = new AdmZip(zipBuffer)
+        zip = new AdmZip(zipBuffer)
 
         // Validate ZIP contents
         if (zip.getEntries().length === 0) {
@@ -171,6 +221,8 @@ router.post('/', upload.single('extensionUrl'), async (req, res) => {
         }
       }
 
+      // Parse manifest content to JSON.
+      const manifest = JSON.parse(manifestContent)
       const manifestAnalysis = analyzeManifest(manifest)
 
       const fileContents = await readFiles(tempPath)
@@ -182,7 +234,6 @@ router.post('/', upload.single('extensionUrl'), async (req, res) => {
         calculateJSLibrariesScore(retireJsResults)
       const eslintResults = await runESLintOnDirectory(tempPath)
 
-      // Calculate CSP and Permissions scores
       const cspAnalysis = analyzeCSP(manifest)
       const permissionsAnalysis = analyzePermissions(manifest)
 
@@ -225,26 +276,21 @@ async function readFiles(directoryPath, basePath = directoryPath) {
 
   try {
     const files = await fsPromises.readdir(directoryPath)
-
     for (const file of files) {
       const fullPath = path.join(directoryPath, file)
       const relativePath = path.relative(basePath, fullPath)
-
       const fileStat = await fsPromises.stat(fullPath)
 
       if (fileStat.isDirectory()) {
         const nestedFiles = await readFiles(fullPath, basePath)
         fileContents = { ...fileContents, ...nestedFiles }
       } else if (path.extname(file) === '.js') {
-        // **Improvement**: Skip minified files and large files
         if (file.endsWith('.min.js')) continue
-        if (fileStat.size > 1024 * 1024) continue // Skip files larger than 1MB
-
+        if (fileStat.size > 1024 * 1024) continue // Skip large files
         const content = await fsPromises.readFile(fullPath, 'utf-8')
         fileContents[relativePath] = content
       }
     }
-
     return fileContents
   } catch (err) {
     throw new Error(`Error reading files: ${err.message}`)
@@ -258,7 +304,6 @@ async function runESLintOnDirectory(directoryPath) {
       plugins: ['security'],
       extends: ['plugin:security/recommended'],
       rules: {
-        // Added rules specific to Manifest V3
         'no-eval': 'error',
         'no-implied-eval': 'error',
         'no-new-func': 'error',
@@ -272,14 +317,12 @@ async function runESLintOnDirectory(directoryPath) {
   })
 
   const results = await eslint.lintFiles([`${directoryPath}/**/*.js`])
-
   let summary = {
     totalIssues: 0,
     errors: 0,
     warnings: 0,
     commonIssues: {},
   }
-
   results.forEach((result) => {
     result.messages.forEach((msg) => {
       summary.totalIssues++
@@ -288,8 +331,6 @@ async function runESLintOnDirectory(directoryPath) {
       } else {
         summary.warnings++
       }
-
-      // Increment count for each rule ID
       if (summary.commonIssues[msg.ruleId]) {
         summary.commonIssues[msg.ruleId]++
       } else {
@@ -297,13 +338,11 @@ async function runESLintOnDirectory(directoryPath) {
       }
     })
   })
-
   return summary
 }
 
 function analyzeDataHandling(fileContents) {
   let dataHandlingUsage = {}
-
   const patterns = {
     apiCalls: /fetch\(|axios\.|XMLHttpRequest/g,
     localStorage: /localStorage\./g,
@@ -315,13 +354,10 @@ function analyzeDataHandling(fileContents) {
     webWorkers: /new Worker\(/g,
     cryptoAPI: /crypto\.subtle\./g,
     dynamicEval: /eval\(|new Function\(/g,
-    // **Added**: Disallowed functions in Manifest V3
     disallowedFunctions: /setTimeout\(|setInterval\(/g,
   }
-
   for (const file in fileContents) {
     const content = fileContents[file]
-
     Object.keys(patterns).forEach((key) => {
       const matches = content.match(patterns[key]) || []
       if (matches.length > 0) {
@@ -331,7 +367,6 @@ function analyzeDataHandling(fileContents) {
       }
     })
   }
-
   return dataHandlingUsage
 }
 
@@ -343,20 +378,16 @@ function analyzeChromeAPIUsage(fileContents) {
     'chrome.webRequest',
   ]
   const regex = /chrome\.\w+(\.\w+)?/g
-
   for (const file in fileContents) {
     const content = fileContents[file]
     const matches = content.match(regex) || []
-
     matches.forEach((api) => {
       if (!chromeAPIUsage[file]) {
         chromeAPIUsage[file] = { usedAPIs: [], deprecatedAPIs: [] }
       }
-
       if (!chromeAPIUsage[file].usedAPIs.includes(api)) {
         chromeAPIUsage[file].usedAPIs.push(api)
       }
-
       if (
         deprecatedAPIs.includes(api) &&
         !chromeAPIUsage[file].deprecatedAPIs.includes(api)
@@ -365,17 +396,14 @@ function analyzeChromeAPIUsage(fileContents) {
       }
     })
   }
-
   return chromeAPIUsage
 }
 
-// Updated function to find CSP in Manifest V3 format
 function findCSP(manifest) {
   if (manifest.content_security_policy) {
     if (typeof manifest.content_security_policy === 'string') {
       return manifest.content_security_policy
     } else if (typeof manifest.content_security_policy === 'object') {
-      // Handle extension_pages and sandbox
       return (
         manifest.content_security_policy.extension_pages ||
         manifest.content_security_policy.sandbox ||
@@ -390,26 +418,23 @@ function analyzeCSP(manifest) {
   let score = 0
   let cspDetails = {}
   const csp = findCSP(manifest)
-
   if (!csp) {
-    score += 25 // No CSP present
+    score += 25
     cspDetails['warning'] = 'NO CSP DEFINED'
   } else {
     const policies = csp.split(';').filter(Boolean)
     policies.forEach((policy) => {
       const policyParts = policy.trim().split(/\s+/)
       const directive = policyParts.shift()
-
       policyParts.forEach((source) => {
         if (source !== "'self'") {
-          score += 1 // Increment score for each source excluding 'self'
+          score += 1
           cspDetails[directive] = cspDetails[directive] || []
           cspDetails[directive].push(source)
         }
       })
     })
   }
-
   return { score, details: cspDetails }
 }
 
@@ -428,74 +453,52 @@ function analyzeManifest(manifest) {
     developerInfo: {},
     chromeOsKeys: [],
   }
-
-  // Background Scripts and Service Workers
   if (manifest.background) {
     if (manifest.background.service_worker) {
-      // **Changed**: Updated to prioritize service_worker for Manifest V3
       analysisResult.backgroundScripts.push(manifest.background.service_worker)
     } else if (manifest.background.scripts) {
       analysisResult.backgroundScripts = manifest.background.scripts
     }
   }
-
-  // Content Scripts
   if (manifest.content_scripts) {
     manifest.content_scripts.forEach((script) => {
       analysisResult.contentScriptsDomains =
         analysisResult.contentScriptsDomains.concat(script.matches)
     })
   }
-
-  // Web Accessible Resources
   if (manifest.web_accessible_resources) {
     analysisResult.webAccessibleResources =
       manifest.web_accessible_resources.map((resource) => {
         if (typeof resource === 'string') {
-          // Manifest V2 format
           return { resources: [resource], matches: ['<all_urls>'] }
         } else {
-          // Manifest V3 format
           return resource
         }
       })
   }
-
-  // Externally Connectable
   if (manifest.externally_connectable) {
     analysisResult.externallyConnectable =
       manifest.externally_connectable.matches || []
   }
-
-  // Update URL
   if (manifest.update_url) {
     analysisResult.updateUrl = manifest.update_url
   }
-
-  // OAuth2 Information
   if (manifest.oauth2) {
     analysisResult.oauth2 = true
   }
-
-  // Chrome Specific Overrides
   ;['chrome_url_overrides', 'chrome_settings_overrides'].forEach((key) => {
     if (manifest[key]) {
       analysisResult.specificOverrides.push(key)
     }
   })
-
-  // Developer Information
   if (manifest.author) {
     analysisResult.developerInfo.author = manifest.author
   }
-
-  // Chrome OS Specific Keys
   ;['file_browser_handlers', 'input_components'].forEach((key) => {
     if (manifest[key]) {
       analysisResult.chromeOsKeys.push(key)
     }
   })
-
   return analysisResult
 }
 
@@ -513,13 +516,11 @@ async function analyzeJSLibraries(extensionPath) {
 function calculateJSLibrariesScore(retireJsResults) {
   let score = 0
   let jsLibrariesDetails = {}
-
   retireJsResults.forEach((fileResult) => {
     fileResult?.results?.forEach((library) => {
       library?.vulnerabilities?.forEach((vulnerability, index) => {
         const vulnKey = `${library.component}-vuln-${index}`
         score += determineVulnerabilityScore(vulnerability)
-
         jsLibrariesDetails[vulnKey] = {
           component: library.component,
           severity: vulnerability.severity?.toLowerCase(),
@@ -530,7 +531,6 @@ function calculateJSLibrariesScore(retireJsResults) {
       })
     })
   })
-
   return { score, jsLibrariesDetails }
 }
 
@@ -552,23 +552,17 @@ function determineVulnerabilityScore(vulnerability) {
 function analyzePermissions(manifest) {
   let score = 0
   let permissionsDetails = {}
-
-  // **Changed**: Include 'host_permissions' for Manifest V3
   const permissions = (manifest.permissions || [])
     .concat(manifest.optional_permissions || [])
     .concat(manifest.host_permissions || [])
-
   const riskScores = {
-    least: 0, // No risk or negligible risk
+    least: 0,
     low: 1,
     medium: 2,
     high: 3,
-    critical: 4, // Extremely high risk
+    critical: 4,
   }
-
-  // Map permissions to their respective risk categories
   const permissionRiskLevels = {
-    // 'least' risk
     alarms: 'least',
     contextMenus: 'least',
     'enterprise.deviceAttributes': 'least',
@@ -585,8 +579,6 @@ function analyzePermissions(manifest) {
     wallpaper: 'least',
     externally_connectable: 'least',
     mediaGalleries: 'least',
-
-    // 'low' risk
     printerProvider: 'low',
     certificateProvider: 'low',
     documentScan: 'low',
@@ -599,8 +591,6 @@ function analyzePermissions(manifest) {
     usbDevices: 'low',
     webRequestBlocking: 'low',
     overrideEscFullscreen: 'low',
-
-    // 'medium' risk
     activeTab: 'medium',
     background: 'medium',
     bookmarks: 'medium',
@@ -621,8 +611,6 @@ function analyzePermissions(manifest) {
     syncFileSystem: 'medium',
     fileSystem: 'medium',
     declarativeNetRequest: 'medium',
-
-    // 'high' risk
     clipboardRead: 'high',
     contentSettings: 'high',
     desktopCapture: 'high',
@@ -643,8 +631,6 @@ function analyzePermissions(manifest) {
     browsingData: 'high',
     audioCapture: 'high',
     videoCapture: 'high',
-
-    // 'critical' risk
     cookies: 'critical',
     debugger: 'critical',
     declarativeWebRequest: 'critical',
@@ -659,17 +645,14 @@ function analyzePermissions(manifest) {
     'unsafe-eval': 'critical',
     web_accessible_resources: 'critical',
   }
-
   permissions.forEach((permission) => {
     const riskLevel = permissionRiskLevels[permission] || 'least'
     score += riskScores[riskLevel]
-
     if (riskLevel !== 'least') {
       permissionsDetails[permission] =
         `Permission '${permission}' classified as ${riskLevel} risk.`
     }
   })
-
   return { score, details: permissionsDetails }
 }
 
