@@ -160,15 +160,18 @@ const Main = () => {
   return (
     <>
       {/* Search Section */}
-      <section className="container mx-auto px-4 pt-24 lg:px-44">
+      <section className="container mx-auto px-4 pt-24 lg:px-38">
         <div className="mx-auto flex max-w-7xl flex-wrap justify-center">
           <div className="mb-16 mt-12 w-full px-4 lg:w-5/12 lg:px-8 xl:px-12">
             <div className="text-left">
-              <h1 className="text-5xl font-bold">
+              <h1 className="text-6xl font-bold ">
                 Automate Chrome Extension Risk Assessments
               </h1>
-              <p className="py-6 text-lg font-medium">
-                Secure your enterprise deployments with rapid Manifest V2/V3
+              <p
+                className="py-6 text-lg font-bold font-mono
+"
+              >
+                Secure your enterprise deployments with rapid Manifest V2 and V3
                 scans.
               </p>
               <a
