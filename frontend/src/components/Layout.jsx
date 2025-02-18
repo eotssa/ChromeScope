@@ -1,11 +1,11 @@
-import React from "react"
-import { Link } from "react-router-dom"
+import React from 'react'
+import { Link } from 'react-router-dom'
 
 const Layout = ({ children }) => {
   return (
     <>
       <div className="navbar sticky top-0 z-50 border-b bg-base-100">
-        <div className="container mx-auto lg:px-44">
+        <div className="container mx-auto lg:px-38">
           <div className="flex-1 font-bold">
             <a className="btn btn-ghost hover:bg-white text-4xl font-bold	">
               <Link to="/">Chromescope</Link>
