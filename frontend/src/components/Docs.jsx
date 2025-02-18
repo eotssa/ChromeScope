@@ -9,20 +9,21 @@ const Docs = () => {
             <article className="prose pb-64 ">
               <h1 className="text-center ">Getting Started with Chromescope</h1>
               <p className="">
-                Chromescope integrates a wide array of analyses to provide
-                detailed insights on version compliance, permission evaluations,
-                dynamic code executions, unsafe inline code, API usage
-                detections, and data handling practices.
+                Chromescope automates Chrome extension risk assessments with a
+                powerful suite of analyses. Our platform evaluates Manifest V3
+                compliance, permission usage, dynamic code execution risks,
+                inline code safety, API usage, and data handling practices. Best
+                of all—our free plan requires no authentication token.
               </p>
 
               <p>
                 Only a free plan is available, so no authentication token is
                 required.
               </p>
-              <h2>JSON Response</h2>
+              <h2>JSON Response Format</h2>
               <p>
-                Chromescope automatically detects API calls and responds with
-                JSON.
+                Chromescope analyzes your extension and returns detailed
+                insights in JSON format. Example:
               </p>
               <pre>{`{
   name: "",
