@@ -165,12 +165,11 @@ const Main = () => {
           <div className="mb-16 mt-12 w-full px-4 lg:w-5/12 lg:px-8 xl:px-12">
             <div className="text-left">
               <h1 className="text-5xl font-bold">
-                Automate Extension Risk Assessment for Manifest V3
+                Automate Chrome Extension Risk Assessments
               </h1>
               <p className="py-6 text-lg font-medium">
-                Conduct security assessments of Chrome exensions before
-                deploying to enterprise environments. Chromescope has been
-                updated for V3!
+                Secure your enterprise deployments with rapid Manifest V2/V3
+                scans.
               </p>
               <a
                 href="mailto:wilsonwu97@outlook.com"
@@ -280,8 +279,8 @@ const Main = () => {
                 Have a custom extension? Upload it here.
               </h1>
               <p className="py-6 text-lg font-medium">
-                Extensions uploaded for analysis are deleted and not stored on
-                our servers. (View the source code for yourself)
+                We delete every file after analysis—your data never sticks
+                around. (See our source code.)
               </p>
               <a
                 href="https://github.com/eotssa/ChromeScope"

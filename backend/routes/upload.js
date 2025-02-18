@@ -145,17 +145,14 @@ router.post('/', upload.single(UPLOAD_FIELD_NAME), async (req, res, next) => {
 
       res.json(result)
     } finally {
-      // **Improvement**: Ensure temp directory is deleted even if an error occurs
       deleteTempDirectory(tempPath)
     }
   } catch (err) {
-    // **Improvement**: Better error handling
     console.error(err)
     res.status(500).send('An error occurred during analysis.')
   }
 })
 
-// **Improvement**: Use asynchronous file operations
 async function readFiles(directoryPath, basePath = directoryPath) {
   let fileContents = {}
 
@@ -172,10 +169,8 @@ async function readFiles(directoryPath, basePath = directoryPath) {
         const nestedFiles = await readFiles(fullPath, basePath)
         fileContents = { ...fileContents, ...nestedFiles }
       } else if (path.extname(file) === '.js') {
-        // **Improvement**: Skip minified files
         if (file.endsWith('.min.js')) continue
 
-        // **Improvement**: Limit file size to avoid processing large files
         if (fileStat.size > 1024 * 1024) continue // Skip files larger than 1MB
 
         const content = await fsPromises.readFile(fullPath, 'utf-8')
@@ -189,7 +184,6 @@ async function readFiles(directoryPath, basePath = directoryPath) {
   }
 }
 
-// **Improvement**: Run ESLint in a sandboxed environment (conceptual, requires setup)
 // For the purposes of this example, we'll proceed without actual sandboxing
 async function runESLintOnDirectory(directoryPath) {
   const eslint = new ESLint({
@@ -256,7 +250,6 @@ function analyzeDataHandling(fileContents) {
     webWorkers: /new Worker\(/g,
     cryptoAPI: /crypto\.subtle\./g,
     dynamicEval: /eval\(|new Function\(/g,
-    // **Added**: Disallowed functions in Manifest V3
     disallowedFunctions: /setTimeout\(|setInterval\(/g,
   }
 
@@ -278,12 +271,10 @@ function analyzeDataHandling(fileContents) {
 
 function analyzeChromeAPIUsage(fileContents) {
   let chromeAPIUsage = {}
-  // Added detection of deprecated APIs
   const deprecatedAPIs = [
     'chrome.browserAction',
     'chrome.extension',
     'chrome.webRequest',
-    // Add more deprecated APIs as needed
   ]
   const regex = /chrome\.\w+(\.\w+)?/g
 
@@ -312,13 +303,11 @@ function analyzeChromeAPIUsage(fileContents) {
   return chromeAPIUsage
 }
 
-// Updated function to find CSP in Manifest V3 format
 function findCSP(manifest) {
   if (manifest.content_security_policy) {
     if (typeof manifest.content_security_policy === 'string') {
       return manifest.content_security_policy
     } else if (typeof manifest.content_security_policy === 'object') {
-      // Handle extension_pages and sandbox
       return (
         manifest.content_security_policy.extension_pages ||
         manifest.content_security_policy.sandbox ||
@@ -607,9 +596,8 @@ function analyzePermissions(manifest) {
     score += riskScores[riskLevel]
 
     if (riskLevel !== 'least') {
-      permissionsDetails[
-        permission
-      ] = `Permission '${permission}' classified as ${riskLevel} risk.`
+      permissionsDetails[permission] =
+        `Permission '${permission}' classified as ${riskLevel} risk.`
     }
   })
 
