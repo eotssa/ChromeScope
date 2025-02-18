@@ -274,7 +274,7 @@ const Main = () => {
       </section>
 
       {/* Upload Section */}
-      <section className="container mx-auto px-4 pt-32 lg:px-44">
+      <section className="container mx-auto px-4 pt-32 lg:px-38">
         <div className="mx-auto flex max-w-7xl flex-wrap justify-center">
           <div className="mb-16 mt-5 w-full px-4 lg:w-5/12 lg:px-8 xl:px-12">
             <div className="text-left">
@@ -342,7 +342,7 @@ const Main = () => {
       </section>
 
       {/* Article Cards Section */}
-      <section className="container mx-auto px-4 pt-32 lg:px-44">
+      <section className="container mx-auto px-4 pt-32 lg:px-38">
         <div className="bg-white">
           <div className="mx-auto grid max-w-2xl grid-cols-1 items-center gap-x-8 gap-y-16 px-4 py-24 sm:px-6 sm:py-32 lg:max-w-7xl lg:grid-cols-2 lg:px-8">
             <div>
