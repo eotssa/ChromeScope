@@ -503,12 +503,22 @@ function analyzeManifest(manifest) {
 }
 
 async function analyzeJSLibraries(extensionPath) {
+  const retireCmd = `retire --jspath "${extensionPath}" --outputformat json`
   try {
-    const retireCmd = `retire --jspath "${extensionPath}" --outputformat json`
     const { stdout } = await execAsync(retireCmd, { maxBuffer: 1024 * 1024 })
     const results = JSON.parse(stdout)
     return results.data || []
   } catch (error) {
+    // Retire.js may exit with a non-zero code when vulnerabilities are found.
+    if (error.stdout) {
+      try {
+        const results = JSON.parse(error.stdout)
+        return results.data || []
+      } catch (parseError) {
+        console.error('Failed to parse stdout from retire.js:', error.stdout)
+        throw new Error(`Retire.js analysis failed: ${parseError.message}`)
+      }
+    }
     throw new Error(`Retire.js analysis failed: ${error.message}`)
   }
 }
