@@ -128,7 +128,7 @@ function bufferToStream(buffer) {
 
 function getExtensionIdFromLink(urlOrId) {
   const urlPattern =
-    /^https?:\/\/(?:chromewebstore\.google\.com\/detail\/[\w-]+\/|chrome\.google\.com\/webstore\/detail\/[\w-]+\/)([a-zA-Z0-9]{32})$/
+    /^https?:\/\/(?:chromewebstore\.google\.com\/detail\/[\w-]+\/|chrome\.google\.com\/webstore\/detail\/[\w-]+\/)([a-zA-Z0-9]{32})(?:\/|$)/
   const idPattern = /^[a-zA-Z0-9]{32}$/
   const urlMatch = urlOrId.match(urlPattern)
   if (urlMatch?.[1]) return urlMatch[1]
